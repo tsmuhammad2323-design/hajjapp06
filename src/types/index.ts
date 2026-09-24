@@ -192,6 +192,77 @@ export const PROGRAMS: Record<ProgramType, ProgramConfig> = {
   },
 };
 
+// ====== RECEIPT TEMPLATE ======
+export interface ReceiptTemplate {
+  id: string;
+  name: string;
+  title: string;
+  headerLeft: string;
+  headerRight: string;
+  fields: ReceiptField[];
+  footerText: string;
+  showStamp: boolean;
+  showSignature: boolean;
+  copies: number; // Количество копий на листе (1 или 2)
+}
+
+export interface ReceiptField {
+  id: string;
+  label: string;
+  value: string; // Может содержать переменные: {{pilgrimName}}, {{amount}}, {{amountWords}} и т.д.
+  isAmount?: boolean;
+  isLarge?: boolean;
+}
+
+export const DEFAULT_RECEIPT_TEMPLATE: ReceiptTemplate = {
+  id: 'default',
+  name: 'Стандартный шаблон',
+  title: 'КВИТАНЦИЯ ОБ ОПЛАТЕ ХАДЖА',
+  headerLeft: '',
+  headerRight: '№ {{number}}\nДата: «{{day}}» {{month}} {{year}} г.',
+  fields: [
+    {
+      id: 'payer',
+      label: 'Принято от (ФИО плательщика):',
+      value: '{{pilgrimName}}',
+      isAmount: false,
+      isLarge: false
+    },
+    {
+      id: 'purpose',
+      label: 'За оплату Хаджа за (ФИО паломника):',
+      value: '{{pilgrimName}}',
+      isAmount: false,
+      isLarge: false
+    },
+    {
+      id: 'amountWords',
+      label: 'Сумма прописью:',
+      value: '{{amountWords}}',
+      isAmount: false,
+      isLarge: false
+    },
+    {
+      id: 'amount',
+      label: 'Сумма цифрами:',
+      value: '{{amount}} руб.',
+      isAmount: true,
+      isLarge: false
+    },
+    {
+      id: 'description',
+      label: 'Назначение платежа:',
+      value: 'Оплата услуг по организации паломничества (Хадж)',
+      isAmount: false,
+      isLarge: false
+    }
+  ],
+  footerText: 'Исполнитель (принял средства):',
+  showStamp: true,
+  showSignature: true,
+  copies: 2
+};
+
 // ====== SETTINGS ======
 export interface SystemSettings {
   currency: Currency;
@@ -208,6 +279,7 @@ export interface SystemSettings {
   programDirect: ProgramConfig;
   programEconomy: ProgramConfig;
   defaultProgram: ProgramType;
+  receiptTemplateConfig: ReceiptTemplate;
 }
 
 export const DEFAULT_SETTINGS: SystemSettings = {
@@ -225,6 +297,7 @@ export const DEFAULT_SETTINGS: SystemSettings = {
   programDirect: { ...PROGRAMS.direct },
   programEconomy: { ...PROGRAMS.economy },
   defaultProgram: 'direct',
+  receiptTemplateConfig: { ...DEFAULT_RECEIPT_TEMPLATE },
 };
 
 // ====== SESSION ======

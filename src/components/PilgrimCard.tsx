@@ -126,64 +126,74 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
     const year = date.getFullYear();
     const employee = getUser(receipt.createdBy)?.fullName || '________________________';
     const settings = getSystemSettings();
+    const template = settings.receiptTemplateConfig;
     
-    const receiptHTML = `
-      <div class="receipt">
-        <div class="receipt-header">
-          <div class="receipt-title">КВИТАНЦИЯ ОБ ОПЛАТЕ ХАДЖА</div>
-          <div class="receipt-meta">
-            <div>№ ${receipt.number}</div>
-            <div>Дата: «${day}» ${month < 10 ? '0' + month : month} ${year} г.</div>
+    // Функция замены переменных
+    const replaceVars = (text: string): string => {
+      return text
+        .replace(/\{\{number\}\}/g, receipt.number)
+        .replace(/\{\{day\}\}/g, String(day))
+        .replace(/\{\{month\}\}/g, String(month < 10 ? '0' + month : month))
+        .replace(/\{\{year\}\}/g, String(year))
+        .replace(/\{\{pilgrimName\}\}/g, receipt.pilgrimName)
+        .replace(/\{\{amount\}\}/g, receipt.amount.toLocaleString('ru-RU'))
+        .replace(/\{\{amountWords\}\}/g, amountInWords)
+        .replace(/\{\{employee\}\}/g, employee);
+    };
+    
+    // Генерация полей квитанции
+    const fieldsHTML = template.fields.map(field => `
+      <div class="field">
+        <div class="field-label">${field.label}</div>
+        <div class="field-value ${field.isAmount ? 'amount-digits' : ''} ${field.isLarge ? 'large-field' : ''}">${replaceVars(field.value)}</div>
+      </div>
+    `).join('');
+    
+    // Генерация подвала
+    const footerHTML = `
+      <div class="receipt-footer">
+        <div class="footer-row">
+          <div class="footer-field">
+            <div class="field-label">${template.footerText}</div>
+            <div class="field-value">${replaceVars('{{employee}}')}</div>
           </div>
         </div>
-        
-        <div class="receipt-body">
-          <div class="field">
-            <div class="field-label">Принято от (ФИО плательщика):</div>
-            <div class="field-value">${receipt.pilgrimName}</div>
-          </div>
-          
-          <div class="field">
-            <div class="field-label">За оплату Хаджа за (ФИО паломника):</div>
-            <div class="field-value">${receipt.pilgrimName}</div>
-          </div>
-          
-          <div class="field">
-            <div class="field-label">Сумма прописью:</div>
-            <div class="field-value">${amountInWords}</div>
-          </div>
-          
-          <div class="field">
-            <div class="field-label">Сумма цифрами:</div>
-            <div class="field-value amount-digits">${receipt.amount.toLocaleString('ru-RU')} руб.</div>
-          </div>
-          
-          <div class="field">
-            <div class="field-label">Назначение платежа:</div>
-            <div class="field-value">Оплата услуг по организации паломничества (Хадж)</div>
-          </div>
-        </div>
-        
-        <div class="receipt-footer">
-          <div class="footer-row">
-            <div class="footer-field">
-              <div class="field-label">Исполнитель (принял средства):</div>
-              <div class="field-value">${employee}</div>
-            </div>
-          </div>
-          <div class="footer-row">
+        <div class="footer-row">
+          ${template.showSignature ? `
             <div class="footer-field signature-field">
               <div class="field-label">Подпись исполнителя:</div>
               <div class="signature-line">_________________</div>
             </div>
+          ` : ''}
+          ${template.showStamp ? `
             <div class="footer-field stamp-field">
               <div class="field-label">М.П.</div>
               <div class="stamp-circle"></div>
             </div>
-          </div>
+          ` : ''}
         </div>
       </div>
     `;
+    
+    // Генерация одной квитанции
+    const receiptHTML = `
+      <div class="receipt">
+        <div class="receipt-header">
+          ${template.headerLeft ? `<div class="receipt-left">${replaceVars(template.headerLeft)}</div>` : ''}
+          <div class="receipt-title">${template.title}</div>
+          <div class="receipt-meta">${replaceVars(template.headerRight).replace(/\n/g, '<br>')}</div>
+        </div>
+        <div class="receipt-body">
+          ${fieldsHTML}
+        </div>
+        ${footerHTML}
+      </div>
+    `;
+    
+    // Генерация страницы с нужным количеством копий
+    const pageContent = template.copies === 2 
+      ? `${receiptHTML}<div class="cut-line"></div>${receiptHTML}`
+      : receiptHTML;
     
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -277,6 +287,15 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
             font-weight: bold;
           }
           
+          .large-field {
+            min-height: 10mm;
+          }
+          
+          .receipt-left {
+            text-align: left;
+            font-size: 10pt;
+          }
+          
           .receipt-footer {
             margin-top: 6mm;
             display: flex;
@@ -352,9 +371,7 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
       </head>
       <body>
         <div class="page">
-          ${receiptHTML}
-          <div class="cut-line"></div>
-          ${receiptHTML}
+          ${pageContent}
         </div>
       </body>
       </html>

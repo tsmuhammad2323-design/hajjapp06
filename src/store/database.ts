@@ -409,7 +409,8 @@ export function getSystemSettings(): SystemSettings {
     ...saved,
     programDirect: saved.programDirect || DEFAULT_SETTINGS.programDirect,
     programEconomy: saved.programEconomy || DEFAULT_SETTINGS.programEconomy,
-    defaultProgram: saved.defaultProgram || DEFAULT_SETTINGS.defaultProgram
+    defaultProgram: saved.defaultProgram || DEFAULT_SETTINGS.defaultProgram,
+    receiptTemplateConfig: saved.receiptTemplateConfig || DEFAULT_SETTINGS.receiptTemplateConfig
   };
 }
 
