@@ -136,12 +136,16 @@ export function getPilgrimsForUser(): Pilgrim[] {
 export function createPilgrim(data: Partial<Pilgrim>): Pilgrim {
   const pilgrims = get<Pilgrim>('pilgrims');
   const session = getSession();
+  const settings = getSystemSettings();
+  const programType = data.programType || settings.defaultProgram;
+  const programPrice = programType === 'direct' ? settings.programDirect.price : settings.programEconomy.price;
   const pilgrim: Pilgrim = {
     id: uuidv4(), folderNumber: data.folderNumber || '', lastName: data.lastName || '',
     firstName: data.firstName || '', middleName: data.middleName || '',
     birthDate: data.birthDate || '', passportExpiry: data.passportExpiry || '',
-    phone: data.phone || '', totalAmount: data.totalAmount || 0,
-    leaderId: data.leaderId || '', comments: data.comments || '',
+    phone: data.phone || '', totalAmount: data.totalAmount || programPrice,
+    leaderId: data.leaderId || '', programType,
+    comments: data.comments || '',
     additionalComments: data.additionalComments || '',
     documentStatus: 'incomplete', paymentStatus: 'not_paid', uploadStatus: '',
     isArchived: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), version: 1
@@ -491,17 +495,21 @@ export function calculateAge(birthDate: string): number {
   return age;
 }
 
-export function getPassportExpiryStatus(expiryDate: string): { status: 'valid' | 'warning' | 'expired' | 'empty'; daysLeft: number } {
-  if (!expiryDate) return { status: 'empty', daysLeft: 0 };
+export function getPassportExpiryStatus(expiryDate: string): { status: 'valid' | 'warning' | 'expired' | 'empty'; daysLeft: number; referenceDate: Date } {
+  if (!expiryDate) return { status: 'empty', daysLeft: 0, referenceDate: new Date() };
   const settings = getSystemSettings();
-  const today = new Date();
+  // Используем дату хаджа как базовую для проверки
+  const referenceDate = settings.hajjDate ? new Date(settings.hajjDate) : new Date();
   const expiry = new Date(expiryDate);
-  const diffTime = expiry.getTime() - today.getTime();
+  const diffTime = expiry.getTime() - referenceDate.getTime();
   const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   
-  if (daysLeft < 0) return { status: 'expired', daysLeft };
-  if (daysLeft <= settings.passportExpiryWarningDays) return { status: 'warning', daysLeft };
-  return { status: 'valid', daysLeft };
+  // 6 месяцев = примерно 180 дней
+  const MIN_PASSPORT_VALIDITY_DAYS = 180;
+  
+  if (daysLeft < 0) return { status: 'expired', daysLeft, referenceDate };
+  if (daysLeft < MIN_PASSPORT_VALIDITY_DAYS) return { status: 'warning', daysLeft, referenceDate };
+  return { status: 'valid', daysLeft, referenceDate };
 }
 
 // ====== SEED DATA ======

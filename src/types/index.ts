@@ -57,6 +57,7 @@ export interface Pilgrim {
   phone: string;
   totalAmount: number;
   leaderId: string;
+  programType: ProgramType;
   comments: string;
   additionalComments: string;
   documentStatus: DocumentStatus;
@@ -166,6 +167,31 @@ export const CURRENCIES: Record<Currency, CurrencyConfig> = {
   AED: { code: 'AED', symbol: 'د.إ', name: 'Дирхам ОАЭ', position: 'after' },
 };
 
+// ====== PROGRAM TYPE ======
+export type ProgramType = 'direct' | 'economy';
+
+export interface ProgramConfig {
+  type: ProgramType;
+  name: string;
+  price: number;
+  description: string;
+}
+
+export const PROGRAMS: Record<ProgramType, ProgramConfig> = {
+  direct: { 
+    type: 'direct', 
+    name: 'Прямой рейс', 
+    price: 350000, 
+    description: 'Прямой перелёт без пересадок, комфортные условия' 
+  },
+  economy: { 
+    type: 'economy', 
+    name: 'Эконом', 
+    price: 250000, 
+    description: 'Экономичный вариант с пересадками' 
+  },
+};
+
 // ====== SETTINGS ======
 export interface SystemSettings {
   currency: Currency;
@@ -178,6 +204,10 @@ export interface SystemSettings {
   receiptTemplate: string;
   language: 'ru' | 'en';
   dateFormat: string;
+  hajjDate: string; // Дата хаджа для проверки загранпаспорта
+  programDirect: ProgramConfig;
+  programEconomy: ProgramConfig;
+  defaultProgram: ProgramType;
 }
 
 export const DEFAULT_SETTINGS: SystemSettings = {
@@ -191,6 +221,10 @@ export const DEFAULT_SETTINGS: SystemSettings = {
   receiptTemplate: 'default',
   language: 'ru',
   dateFormat: 'dd.MM.yyyy',
+  hajjDate: '2026-06-05',
+  programDirect: { ...PROGRAMS.direct },
+  programEconomy: { ...PROGRAMS.economy },
+  defaultProgram: 'direct',
 };
 
 // ====== SESSION ======

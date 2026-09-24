@@ -360,13 +360,37 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
             </div>
 
             <div className="bg-white rounded-xl border p-6">
-              <h3 className="font-semibold text-gray-700 mb-4 flex items-center gap-2"><CreditCard className="w-5 h-5" /> Оплата и статусы</h3>
-              <div className="grid grid-cols-2 gap-4">
+              <h3 className="font-semibold text-gray-700 mb-4 flex items-center gap-2"><CreditCard className="w-5 h-5" /> Программа и оплата</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Программа</label>
+                  {editing ? (
+                    <select 
+                      value={formData.programType || 'direct'} 
+                      onChange={e => {
+                        const settings = getSystemSettings();
+                        const newProgram = e.target.value as any;
+                        const newPrice = newProgram === 'direct' ? settings.programDirect.price : settings.programEconomy.price;
+                        setFormData({ ...formData, programType: newProgram, totalAmount: newPrice });
+                      }}
+                      className="w-full px-3 py-2 border rounded-lg text-sm"
+                    >
+                      <option value="direct">{getSystemSettings().programDirect.name}</option>
+                      <option value="economy">{getSystemSettings().programEconomy.name}</option>
+                    </select>
+                  ) : (
+                    <p className="text-sm">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${pilgrim.programType === 'direct' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-emerald-100 text-emerald-700 border-emerald-200'}`}>
+                        {pilgrim.programType === 'direct' ? getSystemSettings().programDirect.name : getSystemSettings().programEconomy.name}
+                      </span>
+                    </p>
+                  )}
+                </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Общая сумма</label>
                   {editing ? (
                     <input type="number" value={formData.totalAmount || 0} onChange={e => setFormData({ ...formData, totalAmount: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border rounded-lg text-sm" />
-                  ) : <p className="text-sm font-semibold">{pilgrim.totalAmount.toLocaleString()} ₽</p>}
+                  ) : <p className="text-sm font-semibold">{formatCurrency(pilgrim.totalAmount)}</p>}
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Статус загрузки</label>

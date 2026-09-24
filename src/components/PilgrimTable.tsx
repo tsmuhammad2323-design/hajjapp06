@@ -3,7 +3,8 @@ import type { Pilgrim, Leader, TableSettings, User } from '../types';
 import {
   getPilgrimsForUser, updatePilgrim, getLeaders, getSession,
   archivePilgrim, deletePilgrim, getTableSettings, setTableSettings as saveTableSettings,
-  getPilgrims, getArchivedPilgrims, restorePilgrim, formatCurrency, calculateAge, getPassportExpiryStatus
+  getPilgrims, getArchivedPilgrims, restorePilgrim, formatCurrency, calculateAge, getPassportExpiryStatus,
+  getSystemSettings
 } from '../store/database';
 import { formatPhone } from '../utils/phone';
 import {
@@ -26,6 +27,7 @@ const COLUMN_DEFS = [
   { key: 'birthDate', label: 'Возраст', width: 100, sortable: true },
   { key: 'passportExpiry', label: 'Срок паспорта', width: 130, sortable: true },
   { key: 'leaderId', label: 'Руководитель', width: 160, sortable: true },
+  { key: 'programType', label: 'Программа', width: 120, sortable: true },
   { key: 'totalAmount', label: 'Сумма', width: 120, sortable: true },
   { key: 'documentStatus', label: 'Документы', width: 110, sortable: true },
   { key: 'paymentStatus', label: 'Оплата', width: 100, sortable: true },
@@ -142,6 +144,12 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
         data.leaderId = editValue;
       } else if (editingCell.field === 'uploadStatus') {
         data.uploadStatus = editValue as any;
+      } else if (editingCell.field === 'programType') {
+        const settings = getSystemSettings();
+        data.programType = editValue as any;
+        // Автоматически обновляем сумму при смене программы
+        const newPrice = editValue === 'direct' ? settings.programDirect.price : settings.programEconomy.price;
+        data.totalAmount = newPrice;
       }
       updatePilgrim(editingCell.pilgrimId, data);
       loadData();
@@ -305,6 +313,22 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
           </select>
         );
       }
+      if (colKey === 'programType') {
+        const settings = getSystemSettings();
+        return (
+          <select
+            value={editValue}
+            onChange={e => setEditValue(e.target.value)}
+            onBlur={saveCellEdit}
+            onKeyDown={e => e.key === 'Enter' && saveCellEdit()}
+            className="w-full px-1 py-0.5 text-sm border border-blue-400 rounded focus:outline-none"
+            autoFocus
+          >
+            <option value="direct">{settings.programDirect.name}</option>
+            <option value="economy">{settings.programEconomy.name}</option>
+          </select>
+        );
+      }
       return (
         <input
           type={colKey === 'totalAmount' ? 'number' : 'text'}
@@ -332,6 +356,16 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
           return fullName || '—';
         }
         case 'leaderId': return getLeaderName(value);
+        case 'programType': {
+          const settings = getSystemSettings();
+          const program = value === 'direct' ? settings.programDirect : settings.programEconomy;
+          const colors = value === 'direct' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-emerald-100 text-emerald-700 border-emerald-200';
+          return (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${colors}`}>
+              {program.name}
+            </span>
+          );
+        }
         case 'totalAmount': return value ? formatCurrency(value) : '—';
         case 'documentStatus': return renderStatusBadge('doc', value);
         case 'paymentStatus': return renderStatusBadge('pay', value);
@@ -373,7 +407,7 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
       }
     })();
 
-    const editableFields = ['folderNumber', 'phone', 'totalAmount', 'leaderId', 'uploadStatus', 'comments'];
+    const editableFields = ['folderNumber', 'phone', 'totalAmount', 'leaderId', 'uploadStatus', 'programType', 'comments'];
     const isEditable = canEdit && (editableFields.includes(colKey) || colKey === 'fullName');
 
     return (
