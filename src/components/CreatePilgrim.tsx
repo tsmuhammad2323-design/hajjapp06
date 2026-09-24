@@ -44,7 +44,8 @@ export default function CreatePilgrim({ user, onBack, onCreated }: CreatePilgrim
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!form.lastName || !form.firstName) { setError('Укажите фамилию и имя (минимум 2 слова)'); return; }
+    if (!form.lastName.trim()) { setError('Укажите фамилию'); return; }
+    if (!form.firstName.trim()) { setError('Укажите имя'); return; }
     if (!form.leaderId) { setError('Выберите руководителя'); return; }
     try {
       const p = createPilgrim(form);
@@ -77,23 +78,29 @@ export default function CreatePilgrim({ user, onBack, onCreated }: CreatePilgrim
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-1">ФИО *</label>
-                <input 
-                  value={`${form.lastName}${form.firstName ? ' ' + form.firstName : ''}${form.middleName ? ' ' + form.middleName : ''}`} 
-                  onChange={e => {
-                    const value = e.target.value;
-                    const parts = value.split(/\s+/).filter(p => p.length > 0);
-                    setForm({ 
-                      ...form, 
-                      lastName: parts[0] || '', 
-                      firstName: parts[1] || '', 
-                      middleName: parts.slice(2).join(' ') || '' 
-                    });
-                  }}
-                  className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" 
-                  placeholder="Фамилия Имя Отчество"
-                  required 
-                />
-                <p className="text-xs text-gray-400 mt-1">Введите фамилию, имя и отчество через пробел</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <input 
+                    value={form.lastName} 
+                    onChange={e => setForm({ ...form, lastName: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" 
+                    placeholder="Фамилия"
+                    required 
+                  />
+                  <input 
+                    value={form.firstName} 
+                    onChange={e => setForm({ ...form, firstName: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" 
+                    placeholder="Имя"
+                    required 
+                  />
+                  <input 
+                    value={form.middleName} 
+                    onChange={e => setForm({ ...form, middleName: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" 
+                    placeholder="Отчество"
+                  />
+                </div>
+                <p className="text-xs text-gray-400 mt-1">Заполните каждое поле отдельно</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>

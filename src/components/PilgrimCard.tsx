@@ -279,22 +279,27 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">ФИО</label>
                   {editing ? (
-                    <input 
-                      value={`${formData.lastName || ''}${formData.firstName ? ' ' + formData.firstName : ''}${formData.middleName ? ' ' + formData.middleName : ''}`} 
-                      onChange={e => {
-                        const value = e.target.value;
-                        const parts = value.split(/\s+/).filter(p => p.length > 0);
-                        setFormData({ 
-                          ...formData, 
-                          lastName: parts[0] || '', 
-                          firstName: parts[1] || '', 
-                          middleName: parts.slice(2).join(' ') || '' 
-                        });
-                      }}
-                      className="w-full px-3 py-2 border rounded-lg text-sm" 
-                      placeholder="Фамилия Имя Отчество"
-                    />
-                  ) : <p className="text-sm font-medium">{`${pilgrim.lastName}${pilgrim.firstName ? ' ' + pilgrim.firstName : ''}${pilgrim.middleName ? ' ' + pilgrim.middleName : ''}` || '—'}</p>}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                      <input 
+                        value={formData.lastName || ''} 
+                        onChange={e => setFormData({ ...formData, lastName: e.target.value })}
+                        className="w-full px-3 py-2 border rounded-lg text-sm" 
+                        placeholder="Фамилия"
+                      />
+                      <input 
+                        value={formData.firstName || ''} 
+                        onChange={e => setFormData({ ...formData, firstName: e.target.value })}
+                        className="w-full px-3 py-2 border rounded-lg text-sm" 
+                        placeholder="Имя"
+                      />
+                      <input 
+                        value={formData.middleName || ''} 
+                        onChange={e => setFormData({ ...formData, middleName: e.target.value })}
+                        className="w-full px-3 py-2 border rounded-lg text-sm" 
+                        placeholder="Отчество"
+                      />
+                    </div>
+                  ) : <p className="text-sm font-medium">{`${pilgrim.lastName} ${pilgrim.firstName} ${pilgrim.middleName}`.trim() || '—'}</p>}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
