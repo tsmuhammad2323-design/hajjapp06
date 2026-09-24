@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { User, Leader, UserRole, AuditLogEntry, TelegramNotification } from '../types';
 import { getUsers, createUser, updateUser, deleteUser, getLeaders, createLeader, updateLeader, deleteLeader, getAuditLogs, getTelegramNotifications } from '../store/database';
+import { formatPhone } from '../utils/phone';
 import { ArrowLeft, Users, Shield, UserPlus, Trash2, Edit3, Save, History, Settings, MessageCircle, Send } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -193,7 +194,12 @@ export default function AdminPanel({ user, onBack }: AdminPanelProps) {
                   </div>
                   <div>
                     <label className="block text-sm text-gray-600 mb-1">Телефон *</label>
-                    <input value={newLeader.phone} onChange={e => setNewLeader({ ...newLeader, phone: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                    <input 
+                      value={newLeader.phone} 
+                      onChange={e => setNewLeader({ ...newLeader, phone: formatPhone(e.target.value) })} 
+                      className="w-full px-3 py-2 border rounded-lg text-sm" 
+                      placeholder="+7 (___) ___-__-__"
+                    />
                   </div>
                   <div className="col-span-2">
                     <label className="block text-sm text-gray-600 mb-1">Telegram Chat ID</label>

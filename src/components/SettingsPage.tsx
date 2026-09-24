@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { SystemSettings, Currency, User } from '../types';
 import { CURRENCIES } from '../types';
 import { getSystemSettings, updateSystemSettings, exportBackup, importBackup } from '../store/database';
+import { formatPhone } from '../utils/phone';
 import { ArrowLeft, Save, Download, Upload, AlertCircle, CheckCircle, Settings as SettingsIcon, Globe, Building, Bell, Database } from 'lucide-react';
 
 interface SettingsPageProps {
@@ -203,7 +204,12 @@ export default function SettingsPage({ user, onBack }: SettingsPageProps) {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-600 mb-1">Телефон</label>
-                    <input value={settings.companyPhone} onChange={e => setSettings({ ...settings, companyPhone: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="+7 (___) ___-__-__" />
+                    <input 
+                      value={settings.companyPhone} 
+                      onChange={e => setSettings({ ...settings, companyPhone: formatPhone(e.target.value) })} 
+                      className="w-full px-3 py-2 border rounded-lg text-sm" 
+                      placeholder="+7 (___) ___-__-__" 
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-600 mb-1">ИНН</label>

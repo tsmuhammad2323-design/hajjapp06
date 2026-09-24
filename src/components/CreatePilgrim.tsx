@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { Leader, User } from '../types';
 import { createPilgrim, getLeaders } from '../store/database';
+import { formatPhone } from '../utils/phone';
 import { ArrowLeft, Save, UserPlus } from 'lucide-react';
 
 interface CreatePilgrimProps {
@@ -100,7 +101,13 @@ export default function CreatePilgrim({ user, onBack, onCreated }: CreatePilgrim
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-1">Телефон</label>
-                <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" placeholder="+7 (___) ___-__-__" />
+                <input 
+                  value={form.phone} 
+                  onChange={e => setForm({ ...form, phone: formatPhone(e.target.value) })} 
+                  className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" 
+                  placeholder="+7 (___) ___-__-__" 
+                />
+                <p className="text-xs text-gray-400 mt-1">Формат: +7 (XXX) XXX-XX-XX</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-1">Руководитель *</label>

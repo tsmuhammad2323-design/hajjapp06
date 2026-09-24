@@ -5,6 +5,7 @@ import {
   getPayments, addPayment, getReceipts, getAuditLogs, getSession, getUser,
   formatCurrency, calculateAge, getPassportExpiryStatus, getSystemSettings
 } from '../store/database';
+import { formatPhone } from '../utils/phone';
 import {
   ArrowLeft, Save, Upload, Trash2, Printer, FileText, CreditCard, History,
   User as UserIcon, Phone, Calendar, FileCheck, AlertCircle, CheckCircle,
@@ -338,7 +339,12 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Телефон</label>
                   {editing ? (
-                    <input value={formData.phone || ''} onChange={e => setFormData({ ...formData, phone: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                    <input 
+                      value={formData.phone || ''} 
+                      onChange={e => setFormData({ ...formData, phone: formatPhone(e.target.value) })} 
+                      className="w-full px-3 py-2 border rounded-lg text-sm" 
+                      placeholder="+7 (___) ___-__-__"
+                    />
                   ) : <p className="text-sm">{pilgrim.phone || '—'}</p>}
                 </div>
                 <div>

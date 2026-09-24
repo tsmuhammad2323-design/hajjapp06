@@ -5,6 +5,7 @@ import {
   archivePilgrim, deletePilgrim, getTableSettings, setTableSettings as saveTableSettings,
   getPilgrims, getArchivedPilgrims, restorePilgrim, formatCurrency, calculateAge, getPassportExpiryStatus
 } from '../store/database';
+import { formatPhone } from '../utils/phone';
 import {
   Search, Filter, Plus, Archive, Trash2, Download, Columns,
   ChevronUp, ChevronDown, MoreVertical, Edit3, Eye, RefreshCw,
@@ -131,8 +132,10 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
       const pilgrim = pilgrims.find(p => p.id === editingCell.pilgrimId);
       if (!pilgrim) return;
       let data: any = {};
-      if (['folderNumber', 'phone', 'comments'].includes(editingCell.field)) {
+      if (editingCell.field === 'folderNumber' || editingCell.field === 'comments') {
         data[editingCell.field] = editValue;
+      } else if (editingCell.field === 'phone') {
+        data.phone = formatPhone(editValue);
       } else if (editingCell.field === 'totalAmount') {
         data.totalAmount = parseFloat(editValue) || 0;
       } else if (editingCell.field === 'leaderId') {
@@ -306,11 +309,18 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
         <input
           type={colKey === 'totalAmount' ? 'number' : 'text'}
           value={editValue}
-          onChange={e => setEditValue(e.target.value)}
+          onChange={e => {
+            if (colKey === 'phone') {
+              setEditValue(formatPhone(e.target.value));
+            } else {
+              setEditValue(e.target.value);
+            }
+          }}
           onBlur={saveCellEdit}
           onKeyDown={e => e.key === 'Enter' && saveCellEdit()}
           className="w-full px-1 py-0.5 text-sm border border-blue-400 rounded focus:outline-none"
           autoFocus
+          placeholder={colKey === 'phone' ? '+7 (___) ___-__-__' : undefined}
         />
       );
     }
