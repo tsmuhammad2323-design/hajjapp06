@@ -28,7 +28,7 @@ export default function CreatePilgrim({ user, onBack, onCreated }: CreatePilgrim
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!form.lastName || !form.firstName) { setError('Укажите ФИО паломника'); return; }
+    if (!form.lastName || !form.firstName) { setError('Укажите фамилию и имя (минимум 2 слова)'); return; }
     if (!form.leaderId) { setError('Выберите руководителя'); return; }
     try {
       const p = createPilgrim(form);
@@ -58,30 +58,39 @@ export default function CreatePilgrim({ user, onBack, onCreated }: CreatePilgrim
 
           <div className="bg-white rounded-xl border p-6">
             <h3 className="font-semibold text-gray-700 mb-4">Основные данные</h3>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Фамилия *</label>
-                <input value={form.lastName} onChange={e => setForm({ ...form, lastName: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" required />
+                <label className="block text-sm font-medium text-gray-600 mb-1">ФИО *</label>
+                <input 
+                  value={`${form.lastName} ${form.firstName} ${form.middleName}`.trim()} 
+                  onChange={e => {
+                    const parts = e.target.value.trim().split(/\s+/);
+                    setForm({ 
+                      ...form, 
+                      lastName: parts[0] || '', 
+                      firstName: parts[1] || '', 
+                      middleName: parts.slice(2).join(' ') || '' 
+                    });
+                  }}
+                  className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" 
+                  placeholder="Фамилия Имя Отчество"
+                  required 
+                />
+                <p className="text-xs text-gray-400 mt-1">Введите фамилию, имя и отчество через пробел</p>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Имя *</label>
-                <input value={form.firstName} onChange={e => setForm({ ...form, firstName: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" required />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Отчество</label>
-                <input value={form.middleName} onChange={e => setForm({ ...form, middleName: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Номер папки</label>
-                <input value={form.folderNumber} onChange={e => setForm({ ...form, folderNumber: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" placeholder="П-XXX" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Дата рождения</label>
-                <input type="date" value={form.birthDate} onChange={e => setForm({ ...form, birthDate: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Срок загранпаспорта</label>
-                <input type="date" value={form.passportExpiry} onChange={e => setForm({ ...form, passportExpiry: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Номер папки</label>
+                  <input value={form.folderNumber} onChange={e => setForm({ ...form, folderNumber: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" placeholder="П-XXX" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Дата рождения</label>
+                  <input type="date" value={form.birthDate} onChange={e => setForm({ ...form, birthDate: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Срок загранпаспорта</label>
+                  <input type="date" value={form.passportExpiry} onChange={e => setForm({ ...form, passportExpiry: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                </div>
               </div>
             </div>
           </div>

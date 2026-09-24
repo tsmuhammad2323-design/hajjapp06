@@ -65,7 +65,7 @@ export default function Dashboard({ user }: DashboardProps) {
         </div>
 
         {/* Stats cards */}
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {cards.map((card, i) => (
             <div key={i} className="bg-white rounded-xl border p-5 shadow-sm">
               <div className="flex items-center justify-between mb-3">
@@ -81,7 +81,7 @@ export default function Dashboard({ user }: DashboardProps) {
         </div>
 
         {/* Status breakdown */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-white rounded-xl border p-6">
             <h3 className="font-semibold text-gray-700 mb-4 flex items-center gap-2">
               <CreditCard className="w-5 h-5 text-blue-500" /> Статус оплаты

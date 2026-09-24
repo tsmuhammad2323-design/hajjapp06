@@ -367,32 +367,32 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
       )}
 
       {/* Toolbar */}
-      <div className="border-b bg-gray-50 px-4 py-3 space-y-3">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative flex-1 min-w-[200px] max-w-md">
+      <div className="border-b bg-gray-50 px-2 md:px-4 py-2 md:py-3 space-y-2 md:space-y-3">
+        <div className="flex items-center gap-2 md:gap-3 flex-wrap">
+          <div className="relative flex-1 min-w-[150px] md:min-w-[200px] max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Поиск по ФИО, телефону, ID, папке..."
+              placeholder="Поиск..."
               className="w-full pl-9 pr-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
           </div>
-          <button onClick={() => setShowFilters(!showFilters)} className={`px-3 py-2 border rounded-lg text-sm flex items-center gap-1.5 ${showFilters ? 'bg-blue-50 border-blue-300 text-blue-700' : 'hover:bg-gray-100'}`}>
-            <Filter className="w-4 h-4" /> Фильтры
+          <button onClick={() => setShowFilters(!showFilters)} className={`px-2 md:px-3 py-2 border rounded-lg text-xs md:text-sm flex items-center gap-1 md:gap-1.5 ${showFilters ? 'bg-blue-50 border-blue-300 text-blue-700' : 'hover:bg-gray-100'}`}>
+            <Filter className="w-4 h-4" /> <span className="hidden sm:inline">Фильтры</span>
           </button>
-          <button onClick={() => setShowColumnPicker(!showColumnPicker)} className="px-3 py-2 border rounded-lg text-sm flex items-center gap-1.5 hover:bg-gray-100">
-            <Columns className="w-4 h-4" /> Колонки
+          <button onClick={() => setShowColumnPicker(!showColumnPicker)} className="px-2 md:px-3 py-2 border rounded-lg text-xs md:text-sm flex items-center gap-1 md:gap-1.5 hover:bg-gray-100">
+            <Columns className="w-4 h-4" /> <span className="hidden sm:inline">Колонки</span>
           </button>
-          <button onClick={() => { loadData(); showNotification('success', 'Данные обновлены'); }} className="px-3 py-2 border rounded-lg text-sm flex items-center gap-1.5 hover:bg-gray-100">
-            <RefreshCw className="w-4 h-4" /> Обновить
+          <button onClick={() => { loadData(); showNotification('success', 'Данные обновлены'); }} className="px-2 md:px-3 py-2 border rounded-lg text-xs md:text-sm flex items-center gap-1 md:gap-1.5 hover:bg-gray-100">
+            <RefreshCw className="w-4 h-4" /> <span className="hidden sm:inline">Обновить</span>
           </button>
           <div className="flex-1" />
           {selected.size > 0 && (
             <div className="relative">
-              <button onClick={() => setShowBulkMenu(!showBulkMenu)} className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm flex items-center gap-1.5 hover:bg-blue-700">
-                <MoreVertical className="w-4 h-4" /> Действия ({selected.size})
+              <button onClick={() => setShowBulkMenu(!showBulkMenu)} className="px-2 md:px-3 py-2 bg-blue-600 text-white rounded-lg text-xs md:text-sm flex items-center gap-1 md:gap-1.5 hover:bg-blue-700">
+                <MoreVertical className="w-4 h-4" /> <span className="hidden sm:inline">Действия ({selected.size})</span><span className="sm:hidden">{selected.size}</span>
               </button>
               {showBulkMenu && (
                 <div className="absolute right-0 top-full mt-1 bg-white border rounded-lg shadow-lg py-1 z-20 min-w-[180px]">
@@ -412,8 +412,8 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
               )}
             </div>
           )}
-          <button onClick={onCreateNew} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm flex items-center gap-1.5 hover:bg-blue-700 shadow-sm">
-            <Plus className="w-4 h-4" /> Новый паломник
+          <button onClick={onCreateNew} className="px-3 md:px-4 py-2 bg-blue-600 text-white rounded-lg text-xs md:text-sm flex items-center gap-1 md:gap-1.5 hover:bg-blue-700 shadow-sm">
+            <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Новый паломник</span><span className="sm:hidden">Новый</span>
           </button>
         </div>
 
@@ -484,16 +484,17 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
 
       {/* Table */}
       <div className="flex-1 overflow-auto">
+        <div className="min-w-max">
         <table className="w-full border-collapse">
           <thead className="sticky top-0 bg-gray-100 z-10">
             <tr>
-              <th className="w-10 px-2 py-2 border-b border-r">
+              <th className="w-10 px-2 py-2 border-b border-r sticky left-0 bg-gray-100 z-20">
                 <input type="checkbox" checked={selected.size === filteredPilgrims.length && filteredPilgrims.length > 0} onChange={toggleSelectAll} className="rounded" />
               </th>
               {visibleCols.map(col => (
                 <th
                   key={col.key}
-                  className="px-3 py-2 border-b border-r text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-200 select-none"
+                  className="px-3 py-2 border-b border-r text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-200 select-none whitespace-nowrap"
                   style={{ width: col.width, minWidth: col.width }}
                   onClick={() => col.sortable && handleSort(col.key)}
                 >
@@ -505,13 +506,13 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
                   </div>
                 </th>
               ))}
-              <th className="w-20 px-2 py-2 border-b text-center text-xs font-semibold text-gray-600">Действия</th>
+              <th className="w-20 px-2 py-2 border-b text-center text-xs font-semibold text-gray-600 sticky right-0 bg-gray-100 z-20">Действия</th>
             </tr>
           </thead>
           <tbody>
             {filteredPilgrims.map((pilgrim, idx) => (
               <tr key={pilgrim.id} className={`border-b hover:bg-blue-50/50 transition ${selected.has(pilgrim.id) ? 'bg-blue-50' : idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
-                <td className="px-2 py-1.5 border-r text-center">
+                <td className="px-2 py-1.5 border-r text-center sticky left-0 bg-inherit z-10">
                   <input type="checkbox" checked={selected.has(pilgrim.id)} onChange={() => toggleSelect(pilgrim.id)} className="rounded" />
                 </td>
                 {visibleCols.map(col => (
@@ -519,7 +520,7 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
                     {renderCell(pilgrim, col.key)}
                   </td>
                 ))}
-                <td className="px-2 py-1.5 text-center">
+                <td className="px-2 py-1.5 text-center sticky right-0 bg-inherit z-10">
                   <div className="flex items-center justify-center gap-1">
                     <button onClick={() => onOpenCard(pilgrim.id)} className="p-1 hover:bg-blue-100 rounded text-blue-600" title="Открыть карточку">
                       <Eye className="w-4 h-4" />
@@ -539,6 +540,7 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Bulk change leader modal */}

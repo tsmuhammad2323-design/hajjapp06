@@ -197,47 +197,49 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
       )}
 
       {/* Header */}
-      <div className="bg-white border-b px-6 py-4">
-        <div className="flex items-center gap-4">
-          <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-lg">
+      <div className="bg-white border-b px-3 md:px-6 py-3 md:py-4">
+        <div className="flex items-start md:items-center gap-2 md:gap-4 flex-wrap">
+          <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-lg flex-shrink-0">
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className="flex-1">
-            <h1 className="text-xl font-bold">{pilgrim.lastName} {pilgrim.firstName} {pilgrim.middleName}</h1>
-            <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-base md:text-xl font-bold truncate">{pilgrim.lastName} {pilgrim.firstName} {pilgrim.middleName}</h1>
+            <div className="flex items-center gap-2 md:gap-3 mt-1 text-xs md:text-sm text-gray-500 flex-wrap">
               <span>Папка: {pilgrim.folderNumber || '—'}</span>
-              <span>•</span>
-              <span>ID: {pilgrim.id.slice(0, 8)}</span>
-              <span>•</span>
-              <span>Руководитель: {leaders.find(l => l.id === pilgrim.leaderId)?.fullName || '—'}</span>
+              <span className="hidden md:inline">•</span>
+              <span className="hidden md:inline">ID: {pilgrim.id.slice(0, 8)}</span>
+              <span className="hidden md:inline">•</span>
+              <span className="truncate">Рук.: {leaders.find(l => l.id === pilgrim.leaderId)?.fullName || '—'}</span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 md:gap-2 flex-wrap">
             {getStatusBadge(pilgrim.documentStatus, 'doc')}
             {getStatusBadge(pilgrim.paymentStatus, 'pay')}
             {pilgrim.uploadStatus && getStatusBadge(pilgrim.uploadStatus, 'upload')}
           </div>
-          {canEdit && !editing && (
-            <button onClick={() => setEditing(true)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm flex items-center gap-1.5 hover:bg-blue-700">
-              <Edit3 className="w-4 h-4" /> Редактировать
-            </button>
-          )}
-          {editing && (
-            <>
-              <button onClick={handleSave} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm flex items-center gap-1.5 hover:bg-emerald-700">
-                <Save className="w-4 h-4" /> Сохранить
+          <div className="flex items-center gap-2 w-full md:w-auto">
+            {canEdit && !editing && (
+              <button onClick={() => setEditing(true)} className="flex-1 md:flex-none px-3 md:px-4 py-2 bg-blue-600 text-white rounded-lg text-xs md:text-sm flex items-center justify-center gap-1.5 hover:bg-blue-700">
+                <Edit3 className="w-4 h-4" /> Редактировать
               </button>
-              <button onClick={() => { setEditing(false); setFormData(pilgrim); }} className="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50">
-                Отмена
-              </button>
-            </>
-          )}
+            )}
+            {editing && (
+              <>
+                <button onClick={handleSave} className="flex-1 md:flex-none px-3 md:px-4 py-2 bg-emerald-600 text-white rounded-lg text-xs md:text-sm flex items-center justify-center gap-1.5 hover:bg-emerald-700">
+                  <Save className="w-4 h-4" /> Сохранить
+                </button>
+                <button onClick={() => { setEditing(false); setFormData(pilgrim); }} className="flex-1 md:flex-none px-3 md:px-4 py-2 border rounded-lg text-xs md:text-sm hover:bg-gray-50">
+                  Отмена
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="bg-white border-b px-6">
-        <div className="flex gap-0">
+      <div className="bg-white border-b px-2 md:px-6 overflow-x-auto">
+        <div className="flex gap-0 min-w-max">
           {[
             { key: 'info', label: 'Информация', icon: UserIcon },
             { key: 'documents', label: `Документы (${documents.length}/4)`, icon: FileCheck },
@@ -247,7 +249,7 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key as any)}
-              className={`px-4 py-3 text-sm font-medium border-b-2 transition flex items-center gap-1.5 ${activeTab === tab.key ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+              className={`px-3 md:px-4 py-3 text-xs md:text-sm font-medium border-b-2 transition flex items-center gap-1 md:gap-1.5 whitespace-nowrap ${activeTab === tab.key ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
             >
               <tab.icon className="w-4 h-4" /> {tab.label}
             </button>
@@ -256,47 +258,50 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto p-3 md:p-6">
         {activeTab === 'info' && (
-          <div className="max-w-3xl space-y-6">
+          <div className="max-w-3xl space-y-4 md:space-y-6">
             <div className="bg-white rounded-xl border p-6">
               <h3 className="font-semibold text-gray-700 mb-4 flex items-center gap-2"><UserIcon className="w-5 h-5" /> Основная информация</h3>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-4">
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">Фамилия</label>
+                  <label className="block text-xs text-gray-500 mb-1">ФИО</label>
                   {editing ? (
-                    <input value={formData.lastName || ''} onChange={e => setFormData({ ...formData, lastName: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" />
-                  ) : <p className="text-sm font-medium">{pilgrim.lastName || '—'}</p>}
+                    <input 
+                      value={`${formData.lastName || ''} ${formData.firstName || ''} ${formData.middleName || ''}`.trim()} 
+                      onChange={e => {
+                        const parts = e.target.value.trim().split(/\s+/);
+                        setFormData({ 
+                          ...formData, 
+                          lastName: parts[0] || '', 
+                          firstName: parts[1] || '', 
+                          middleName: parts[2] || '' 
+                        });
+                      }}
+                      className="w-full px-3 py-2 border rounded-lg text-sm" 
+                      placeholder="Фамилия Имя Отчество"
+                    />
+                  ) : <p className="text-sm font-medium">{`${pilgrim.lastName} ${pilgrim.firstName} ${pilgrim.middleName}`.trim() || '—'}</p>}
                 </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Имя</label>
-                  {editing ? (
-                    <input value={formData.firstName || ''} onChange={e => setFormData({ ...formData, firstName: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" />
-                  ) : <p className="text-sm font-medium">{pilgrim.firstName || '—'}</p>}
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Отчество</label>
-                  {editing ? (
-                    <input value={formData.middleName || ''} onChange={e => setFormData({ ...formData, middleName: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" />
-                  ) : <p className="text-sm font-medium">{pilgrim.middleName || '—'}</p>}
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Номер папки</label>
-                  {editing ? (
-                    <input value={formData.folderNumber || ''} onChange={e => setFormData({ ...formData, folderNumber: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" />
-                  ) : <p className="text-sm font-medium">{pilgrim.folderNumber || '—'}</p>}
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Дата рождения</label>
-                  {editing ? (
-                    <input type="date" value={formData.birthDate || ''} onChange={e => setFormData({ ...formData, birthDate: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" />
-                  ) : <p className="text-sm">{pilgrim.birthDate ? new Date(pilgrim.birthDate).toLocaleDateString('ru-RU') : '—'}</p>}
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Срок загранпаспорта</label>
-                  {editing ? (
-                    <input type="date" value={formData.passportExpiry || ''} onChange={e => setFormData({ ...formData, passportExpiry: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" />
-                  ) : <p className="text-sm">{pilgrim.passportExpiry ? new Date(pilgrim.passportExpiry).toLocaleDateString('ru-RU') : '—'}</p>}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Номер папки</label>
+                    {editing ? (
+                      <input value={formData.folderNumber || ''} onChange={e => setFormData({ ...formData, folderNumber: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                    ) : <p className="text-sm font-medium">{pilgrim.folderNumber || '—'}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Дата рождения</label>
+                    {editing ? (
+                      <input type="date" value={formData.birthDate || ''} onChange={e => setFormData({ ...formData, birthDate: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                    ) : <p className="text-sm">{pilgrim.birthDate ? new Date(pilgrim.birthDate).toLocaleDateString('ru-RU') : '—'}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Срок загранпаспорта</label>
+                    {editing ? (
+                      <input type="date" value={formData.passportExpiry || ''} onChange={e => setFormData({ ...formData, passportExpiry: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                    ) : <p className="text-sm">{pilgrim.passportExpiry ? new Date(pilgrim.passportExpiry).toLocaleDateString('ru-RU') : '—'}</p>}
+                  </div>
                 </div>
               </div>
             </div>
