@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { Pilgrim, Leader, TableSettings, User } from '../types';
 import {
   getPilgrimsForUser, updatePilgrim, getLeaders, getSession,
@@ -10,7 +10,8 @@ import { formatPhone } from '../utils/phone';
 import {
   Search, Filter, Plus, Archive, Trash2, Download, Columns,
   ChevronUp, ChevronDown, MoreVertical, Edit3, Eye, RefreshCw,
-  CheckCircle, XCircle, AlertCircle, Users, FileText, CreditCard, Upload
+  CheckCircle, XCircle, AlertCircle, Users, FileText, CreditCard, Upload,
+  FolderSync
 } from 'lucide-react';
 
 interface PilgrimTableProps {
@@ -53,6 +54,9 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
   const [showBulkMenu, setShowBulkMenu] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showArchive, setShowArchive] = useState(false);
+  const [showImportDocs, setShowImportDocs] = useState(false);
+  const [importJsonData, setImportJsonData] = useState<string>('');
+  const importFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadData();
@@ -184,6 +188,69 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
       showNotification('error', err.message || 'Ошибка сохранения');
     }
     setEditFullName(null);
+  };
+
+  // Импорт статусов документов из JSON
+  const handleImportDocStatuses = () => {
+    try {
+      const data = JSON.parse(importJsonData);
+      
+      if (!data.results || !Array.isArray(data.results)) {
+        showNotification('error', 'Неверный формат файла. Ожидается JSON с полем "results"');
+        return;
+      }
+      
+      let updatedCount = 0;
+      let notFoundCount = 0;
+      
+      // Перебираем результаты сканирования
+      for (const scanResult of data.results) {
+        const folderNumber = scanResult.folderNumber;
+        
+        // Ищем паломника по номеру папки
+        const pilgrim = pilgrims.find(p => p.folderNumber === folderNumber);
+        
+        if (!pilgrim) {
+          notFoundCount++;
+          continue;
+        }
+        
+        // Обновляем статус документов
+        const hasAll = Object.values(scanResult.documents).every(v => v === true);
+        const newStatus = hasAll ? 'complete' : 'incomplete';
+        
+        // Проверяем нужно ли обновлять
+        if (pilgrim.documentStatus !== newStatus) {
+          updatePilgrim(pilgrim.id, { documentStatus: newStatus }, false);
+          updatedCount++;
+        }
+      }
+      
+      loadData();
+      setShowImportDocs(false);
+      setImportJsonData('');
+      
+      let message = `✅ Обновлено статусов: ${updatedCount}`;
+      if (notFoundCount > 0) {
+        message += `\n⚠️ Не найдено паломников: ${notFoundCount}`;
+      }
+      showNotification('success', message);
+      
+    } catch (err: any) {
+      showNotification('error', 'Ошибка чтения JSON: ' + err.message);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      setImportJsonData(content);
+    };
+    reader.readAsText(file);
   };
 
   const toggleSelect = (id: string) => {
@@ -478,6 +545,13 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
           <button onClick={() => { loadData(); showNotification('success', 'Данные обновлены'); }} className="px-2 md:px-3 py-2 border rounded-lg text-xs md:text-sm flex items-center gap-1 md:gap-1.5 hover:bg-gray-100">
             <RefreshCw className="w-4 h-4" /> <span className="hidden sm:inline">Обновить</span>
           </button>
+          <button 
+            onClick={() => setShowImportDocs(true)} 
+            className="px-2 md:px-3 py-2 border rounded-lg text-xs md:text-sm flex items-center gap-1 md:gap-1.5 hover:bg-gray-100 text-purple-600 border-purple-200"
+            title="Импорт статусов документов из сканера папок"
+          >
+            <FolderSync className="w-4 h-4" /> <span className="hidden sm:inline">Импорт документов</span>
+          </button>
           <div className="flex-1" />
           {selected.size > 0 && (
             <div className="relative">
@@ -684,6 +758,92 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
             <div className="flex gap-2">
               <button onClick={applyBulkUpload} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Применить</button>
               <button onClick={() => setShowBulkUpload(false)} className="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50">Отмена</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import documents modal */}
+      {showImportDocs && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowImportDocs(false)}>
+          <div className="bg-white rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <FolderSync className="w-5 h-5 text-purple-600" />
+              Импорт статусов документов
+            </h3>
+            
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <h4 className="font-medium text-blue-900 mb-2">📋 Инструкция:</h4>
+              <ol className="list-decimal list-inside space-y-1 text-sm text-blue-800">
+                <li>Запустите скрипт <code className="bg-blue-100 px-1 rounded">scan_documents.py</code> на вашем компьютере</li>
+                <li>Скрипт создаст файл <code className="bg-blue-100 px-1 rounded">document_status.json</code></li>
+                <li>Загрузите этот файл здесь или вставьте содержимое ниже</li>
+                <li>Нажмите "Применить" для обновления статусов</li>
+              </ol>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Вариант 1: Загрузить JSON файл
+                </label>
+                <input
+                  ref={importFileRef}
+                  type="file"
+                  accept=".json"
+                  onChange={handleFileSelect}
+                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"
+                />
+              </div>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-white text-gray-500">или</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Вариант 2: Вставить JSON содержимое
+                </label>
+                <textarea
+                  value={importJsonData}
+                  onChange={e => setImportJsonData(e.target.value)}
+                  placeholder='Вставьте содержимое файла document_status.json сюда...'
+                  className="w-full h-48 px-3 py-2 border rounded-lg text-sm font-mono focus:ring-2 focus:ring-purple-400 focus:outline-none"
+                />
+              </div>
+
+              {importJsonData && (
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-sm text-gray-600">
+                    📊 Размер данных: {(importJsonData.length / 1024).toFixed(1)} КБ
+                  </p>
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={handleImportDocStatuses}
+                  disabled={!importJsonData}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  Применить
+                </button>
+                <button
+                  onClick={() => {
+                    setShowImportDocs(false);
+                    setImportJsonData('');
+                  }}
+                  className="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50"
+                >
+                  Отмена
+                </button>
+              </div>
             </div>
           </div>
         </div>
