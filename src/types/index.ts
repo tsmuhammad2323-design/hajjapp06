@@ -57,7 +57,7 @@ export interface Pilgrim {
   phone: string;
   totalAmount: number;
   leaderId: string;
-  programType: ProgramType;
+  programType?: ProgramType; // Опционально для обратной совместимости
   comments: string;
   additionalComments: string;
   documentStatus: DocumentStatus;

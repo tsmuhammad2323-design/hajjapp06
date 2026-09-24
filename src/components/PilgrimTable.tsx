@@ -373,7 +373,7 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
           const colors = programType === 'direct' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-emerald-100 text-emerald-700 border-emerald-200';
           return (
             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${colors}`}>
-              {program.name}
+              {program?.name || 'Не указана'}
             </span>
           );
         }

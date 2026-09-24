@@ -41,20 +41,25 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
   useEffect(() => { loadData(); }, [pilgrimId]);
 
   const loadData = () => {
-    const p = getPilgrim(pilgrimId);
-    if (!p) { onBack(); return; }
-    // Миграция: если нет programType, устанавливаем по умолчанию
-    if (!p.programType) {
-      const settings = getSystemSettings();
-      p.programType = settings.defaultProgram;
+    try {
+      const p = getPilgrim(pilgrimId);
+      if (!p) { onBack(); return; }
+      // Миграция: если нет programType, устанавливаем по умолчанию
+      if (!p.programType) {
+        const settings = getSystemSettings();
+        p.programType = settings.defaultProgram;
+      }
+      setPilgrim(p);
+      setFormData(p);
+      setLeaders(getLeaders());
+      setDocuments(getDocuments(pilgrimId));
+      setPayments(getPayments(pilgrimId));
+      setReceipts(getReceipts(pilgrimId));
+      setAuditLogs(getAuditLogs(pilgrimId));
+    } catch (err) {
+      console.error('Error loading pilgrim data:', err);
+      onBack();
     }
-    setPilgrim(p);
-    setFormData(p);
-    setLeaders(getLeaders());
-    setDocuments(getDocuments(pilgrimId));
-    setPayments(getPayments(pilgrimId));
-    setReceipts(getReceipts(pilgrimId));
-    setAuditLogs(getAuditLogs(pilgrimId));
   };
 
   const showNotif = (type: 'success' | 'error', text: string) => {
@@ -385,8 +390,8 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
                     </select>
                   ) : (
                     <p className="text-sm">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${pilgrim.programType === 'direct' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-emerald-100 text-emerald-700 border-emerald-200'}`}>
-                        {pilgrim.programType === 'direct' ? getSystemSettings().programDirect.name : getSystemSettings().programEconomy.name}
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${(pilgrim.programType || 'direct') === 'direct' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-emerald-100 text-emerald-700 border-emerald-200'}`}>
+                        {(pilgrim.programType || 'direct') === 'direct' ? getSystemSettings().programDirect.name : getSystemSettings().programEconomy.name}
                       </span>
                     </p>
                   )}

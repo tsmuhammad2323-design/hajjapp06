@@ -401,7 +401,16 @@ export function setTableSettings(settings: TableSettings) {
 // ====== SYSTEM SETTINGS ======
 export function getSystemSettings(): SystemSettings {
   const saved = getOne<SystemSettings>('system_settings');
-  return saved || DEFAULT_SETTINGS;
+  if (!saved) return DEFAULT_SETTINGS;
+  
+  // Убедимся что все обязательные поля есть
+  return {
+    ...DEFAULT_SETTINGS,
+    ...saved,
+    programDirect: saved.programDirect || DEFAULT_SETTINGS.programDirect,
+    programEconomy: saved.programEconomy || DEFAULT_SETTINGS.programEconomy,
+    defaultProgram: saved.defaultProgram || DEFAULT_SETTINGS.defaultProgram
+  };
 }
 
 export function updateSystemSettings(settings: Partial<SystemSettings>): SystemSettings {
@@ -515,6 +524,11 @@ export function getPassportExpiryStatus(expiryDate: string): { status: 'valid' |
 // ====== SEED DATA ======
 export function seedDatabase() {
   if (getOne('seeded')) return;
+  
+  // Инициализируем настройки по умолчанию если их нет
+  if (!getOne('system_settings')) {
+    setOne('system_settings', DEFAULT_SETTINGS);
+  }
   
   // Create admin
   createUser({ login: 'admin', password: 'admin123', fullName: 'Администратор Системы', role: 'admin' });

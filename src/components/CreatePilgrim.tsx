@@ -23,14 +23,16 @@ export default function CreatePilgrim({ user, onBack, onCreated }: CreatePilgrim
 
   useEffect(() => {
     setLeaders(getLeaders());
-    if (user.role === 'leader' && user.leaderId) {
-      setForm(f => ({ ...f, leaderId: user.leaderId! }));
-    }
+    
     // Установить программу по умолчанию и её цену
+    const defaultProgram = settings.defaultProgram || 'direct';
+    const defaultPrice = defaultProgram === 'direct' ? settings.programDirect.price : settings.programEconomy.price;
+    
     setForm(f => ({ 
       ...f, 
-      programType: settings.defaultProgram,
-      totalAmount: settings.defaultProgram === 'direct' ? settings.programDirect.price : settings.programEconomy.price
+      programType: defaultProgram as ProgramType,
+      totalAmount: defaultPrice,
+      leaderId: user.role === 'leader' && user.leaderId ? user.leaderId : f.leaderId
     }));
   }, []);
 
@@ -38,13 +40,6 @@ export default function CreatePilgrim({ user, onBack, onCreated }: CreatePilgrim
     const price = programType === 'direct' ? settings.programDirect.price : settings.programEconomy.price;
     setForm({ ...form, programType, totalAmount: price });
   };
-
-  // Инициализация формы с программой по умолчанию
-  useEffect(() => {
-    if (!form.programType) {
-      handleProgramChange(settings.defaultProgram);
-    }
-  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
