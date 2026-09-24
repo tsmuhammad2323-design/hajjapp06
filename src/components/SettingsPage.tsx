@@ -4,7 +4,8 @@ import { CURRENCIES, PROGRAMS } from '../types';
 import { getSystemSettings, updateSystemSettings, exportBackup, importBackup, formatCurrency } from '../store/database';
 import { formatPhone } from '../utils/phone';
 import ReceiptTemplateEditor from './ReceiptTemplateEditor';
-import { ArrowLeft, Save, Download, Upload, AlertCircle, CheckCircle, Settings as SettingsIcon, Globe, Building, Bell, Database, Plane, Calendar, FileText } from 'lucide-react';
+import TagsManager from './TagsManager';
+import { ArrowLeft, Save, Download, Upload, AlertCircle, CheckCircle, Settings as SettingsIcon, Globe, Building, Bell, Database, Plane, Calendar, FileText, Tag } from 'lucide-react';
 
 interface SettingsPageProps {
   user: User;
@@ -14,7 +15,7 @@ interface SettingsPageProps {
 export default function SettingsPage({ user, onBack }: SettingsPageProps) {
   const [settings, setSettings] = useState<SystemSettings>(getSystemSettings());
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [activeTab, setActiveTab] = useState<'general' | 'programs' | 'receipt' | 'company' | 'telegram' | 'backup'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'programs' | 'receipt' | 'tags' | 'company' | 'telegram' | 'backup'>('general');
 
   const showNotif = (type: 'success' | 'error', text: string) => {
     setNotification({ type, text });
@@ -101,6 +102,7 @@ export default function SettingsPage({ user, onBack }: SettingsPageProps) {
             { key: 'general', label: 'Общие', icon: Globe },
             { key: 'programs', label: 'Программы', icon: Plane },
             { key: 'receipt', label: 'Квитанции', icon: FileText },
+            { key: 'tags', label: 'Теги', icon: Tag },
             { key: 'company', label: 'Организация', icon: Building },
             { key: 'telegram', label: 'Telegram', icon: Bell },
             { key: 'backup', label: 'Резервные копии', icon: Database },
@@ -330,6 +332,18 @@ export default function SettingsPage({ user, onBack }: SettingsPageProps) {
                   showNotif('success', 'Шаблон квитанции сохранён');
                 }}
               />
+            </div>
+          )}
+
+          {activeTab === 'tags' && (
+            <div className="bg-white rounded-xl border p-4 md:p-6">
+              <h3 className="font-semibold text-gray-700 mb-4 flex items-center gap-2">
+                <Tag className="w-5 h-5 text-blue-500" /> Управление тегами
+              </h3>
+              <p className="text-sm text-gray-500 mb-4">
+                Создавайте теги для группировки паломников. Например: «VIP», «Срочно», «Группа А», «Нужен переводчик».
+              </p>
+              <TagsManager onTagsChange={() => setSettings(getSystemSettings())} />
             </div>
           )}
 

@@ -3,7 +3,7 @@ import type {
   User, Leader, Pilgrim, DocumentFile, Payment, Receipt,
   AuditLogEntry, TelegramNotification, TableSettings, Session,
   UserRole, DocumentType, DocumentStatus, PaymentStatus, UploadStatus, AuditAction,
-  SystemSettings, Currency
+  SystemSettings, Currency, Tag
 } from '../types';
 import { DEFAULT_SETTINGS, CURRENCIES } from '../types';
 
@@ -139,12 +139,20 @@ export function createPilgrim(data: Partial<Pilgrim>): Pilgrim {
   const settings = getSystemSettings();
   const programType = data.programType || settings.defaultProgram;
   const programPrice = programType === 'direct' ? settings.programDirect.price : settings.programEconomy.price;
+  
+  // Авто-нумерация папки если не указана
+  let folderNumber = data.folderNumber || '';
+  if (!folderNumber) {
+    folderNumber = generateNextFolderNumber();
+  }
+  
   const pilgrim: Pilgrim = {
-    id: uuidv4(), folderNumber: data.folderNumber || '', lastName: data.lastName || '',
+    id: uuidv4(), folderNumber, lastName: data.lastName || '',
     firstName: data.firstName || '', middleName: data.middleName || '',
     birthDate: data.birthDate || '', passportExpiry: data.passportExpiry || '',
     phone: data.phone || '', totalAmount: data.totalAmount || programPrice,
     leaderId: data.leaderId || '', programType,
+    tags: data.tags || [],
     comments: data.comments || '',
     additionalComments: data.additionalComments || '',
     documentStatus: 'incomplete', paymentStatus: 'not_paid', uploadStatus: '',
@@ -155,6 +163,31 @@ export function createPilgrim(data: Partial<Pilgrim>): Pilgrim {
   addAuditLog('pilgrim_created', 'pilgrim', pilgrim.id, `${pilgrim.lastName} ${pilgrim.firstName}`, session?.userId);
   sendTelegramNotification(pilgrim.leaderId, pilgrim.id, `Новый паломник: ${pilgrim.lastName} ${pilgrim.firstName} ${pilgrim.middleName}`);
   return pilgrim;
+}
+
+// Авто-нумерация папок А01-А1500
+export function generateNextFolderNumber(): string {
+  const settings = getSystemSettings();
+  const maxNum = settings.maxFolderNumber || 1500;
+  const pilgrims = get<Pilgrim>('pilgrims');
+  
+  // Находим максимальный использованный номер
+  let maxUsed = 0;
+  pilgrims.forEach(p => {
+    const match = p.folderNumber.match(/^А(\d+)$/i);
+    if (match) {
+      const num = parseInt(match[1]);
+      if (num > maxUsed) maxUsed = num;
+    }
+  });
+  
+  const nextNum = maxUsed + 1;
+  if (nextNum > maxNum) {
+    throw new Error(`Достигнут лимит номеров папок (А${maxNum})`);
+  }
+  
+  // Форматируем с ведущими нулями (А01, А02, ..., А100, ...)
+  return `А${String(nextNum).padStart(2, '0')}`;
 }
 
 export function updatePilgrim(id: string, data: Partial<Pilgrim>, checkVersion = true): Pilgrim {
@@ -410,7 +443,9 @@ export function getSystemSettings(): SystemSettings {
     programDirect: saved.programDirect || DEFAULT_SETTINGS.programDirect,
     programEconomy: saved.programEconomy || DEFAULT_SETTINGS.programEconomy,
     defaultProgram: saved.defaultProgram || DEFAULT_SETTINGS.defaultProgram,
-    receiptTemplateConfig: saved.receiptTemplateConfig || DEFAULT_SETTINGS.receiptTemplateConfig
+    receiptTemplateConfig: saved.receiptTemplateConfig || DEFAULT_SETTINGS.receiptTemplateConfig,
+    availableTags: saved.availableTags || DEFAULT_SETTINGS.availableTags,
+    maxFolderNumber: saved.maxFolderNumber || DEFAULT_SETTINGS.maxFolderNumber
   };
 }
 
@@ -419,6 +454,53 @@ export function updateSystemSettings(settings: Partial<SystemSettings>): SystemS
   const updated = { ...current, ...settings };
   setOne('system_settings', updated);
   return updated;
+}
+
+// ====== TAGS MANAGEMENT ======
+export function getAvailableTags(): Tag[] {
+  return getSystemSettings().availableTags || [];
+}
+
+export function createTag(name: string, color: string): Tag {
+  const settings = getSystemSettings();
+  const newTag: Tag = {
+    id: uuidv4(),
+    name,
+    color
+  };
+  const updatedTags = [...(settings.availableTags || []), newTag];
+  updateSystemSettings({ availableTags: updatedTags });
+  return newTag;
+}
+
+export function updateTag(id: string, updates: Partial<Tag>): Tag {
+  const settings = getSystemSettings();
+  const tags = settings.availableTags || [];
+  const idx = tags.findIndex(t => t.id === id);
+  if (idx === -1) throw new Error('Тег не найден');
+  
+  tags[idx] = { ...tags[idx], ...updates };
+  updateSystemSettings({ availableTags: tags });
+  return tags[idx];
+}
+
+export function deleteTag(id: string): void {
+  const settings = getSystemSettings();
+  const tags = (settings.availableTags || []).filter(t => t.id !== id);
+  updateSystemSettings({ availableTags: tags });
+  
+  // Удаляем тег у всех паломников
+  const pilgrims = get<Pilgrim>('pilgrims');
+  pilgrims.forEach(p => {
+    if (p.tags && p.tags.includes(id)) {
+      p.tags = p.tags.filter(tagId => tagId !== id);
+    }
+  });
+  set('pilgrims', pilgrims);
+}
+
+export function getTagById(id: string): Tag | undefined {
+  return getAvailableTags().find(t => t.id === id);
 }
 
 export function formatCurrency(amount: number): string {

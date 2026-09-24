@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import type { Pilgrim, Leader, TableSettings, User } from '../types';
+import type { Pilgrim, Leader, TableSettings, User, Tag } from '../types';
 import {
   getPilgrimsForUser, updatePilgrim, getLeaders, getSession,
   archivePilgrim, deletePilgrim, getTableSettings, setTableSettings as saveTableSettings,
   getPilgrims, getArchivedPilgrims, restorePilgrim, formatCurrency, calculateAge, getPassportExpiryStatus,
-  getSystemSettings
+  getSystemSettings, getAvailableTags, getTagById
 } from '../store/database';
 import { formatPhone } from '../utils/phone';
 import {
   Search, Filter, Plus, Archive, Trash2, Download, Columns,
   ChevronUp, ChevronDown, MoreVertical, Edit3, Eye, RefreshCw,
   CheckCircle, XCircle, AlertCircle, Users, FileText, CreditCard, Upload,
-  FolderSync
+  FolderSync, Tag as TagIcon
 } from 'lucide-react';
 
 interface PilgrimTableProps {
@@ -29,6 +29,7 @@ const COLUMN_DEFS = [
   { key: 'passportExpiry', label: 'Срок паспорта', width: 130, sortable: true },
   { key: 'leaderId', label: 'Руководитель', width: 160, sortable: true },
   { key: 'programType', label: 'Программа', width: 120, sortable: true },
+  { key: 'tags', label: 'Теги', width: 180, sortable: false },
   { key: 'totalAmount', label: 'Сумма', width: 120, sortable: true },
   { key: 'documentStatus', label: 'Документы', width: 110, sortable: true },
   { key: 'paymentStatus', label: 'Оплата', width: 100, sortable: true },
@@ -45,6 +46,7 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
   const [filterDocStatus, setFilterDocStatus] = useState('');
   const [filterPayStatus, setFilterPayStatus] = useState('');
   const [filterUploadStatus, setFilterUploadStatus] = useState('');
+  const [filterTag, setFilterTag] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [settings, setSettings] = useState<TableSettings>(getTableSettings());
   const [editingCell, setEditingCell] = useState<{ pilgrimId: string; field: string } | null>(null);
@@ -101,6 +103,7 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
     if (filterDocStatus) result = result.filter(p => p.documentStatus === filterDocStatus);
     if (filterPayStatus) result = result.filter(p => p.paymentStatus === filterPayStatus);
     if (filterUploadStatus) result = result.filter(p => p.uploadStatus === filterUploadStatus);
+    if (filterTag) result = result.filter(p => p.tags && p.tags.includes(filterTag));
 
     if (settings.sortBy) {
       result.sort((a, b) => {
@@ -123,7 +126,7 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
       });
     }
     return result;
-  }, [pilgrims, search, filterLeader, filterDocStatus, filterPayStatus, filterUploadStatus, settings, leaders]);
+  }, [pilgrims, search, filterLeader, filterDocStatus, filterPayStatus, filterUploadStatus, filterTag, settings, leaders]);
 
   const handleSort = (key: string) => {
     const newSettings = { ...settings };
@@ -444,6 +447,27 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
             </span>
           );
         }
+        case 'tags': {
+          const tags: string[] = pilgrim.tags || [];
+          if (tags.length === 0) return <span className="text-gray-400">—</span>;
+          return (
+            <div className="flex flex-wrap gap-1">
+              {tags.map(tagId => {
+                const tag = getTagById(tagId);
+                if (!tag) return null;
+                return (
+                  <span
+                    key={tag.id}
+                    className="px-2 py-0.5 rounded-full text-xs font-medium text-white"
+                    style={{ backgroundColor: tag.color }}
+                  >
+                    {tag.name}
+                  </span>
+                );
+              })}
+            </div>
+          );
+        }
         case 'totalAmount': return value ? formatCurrency(value) : '—';
         case 'documentStatus': return renderStatusBadge('doc', value);
         case 'paymentStatus': return renderStatusBadge('pay', value);
@@ -615,8 +639,16 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
               <option value="reserve">Резерв</option>
               <option value="main">Основа</option>
             </select>
-            {(filterLeader || filterDocStatus || filterPayStatus || filterUploadStatus) && (
-              <button onClick={() => { setFilterLeader(''); setFilterDocStatus(''); setFilterPayStatus(''); setFilterUploadStatus(''); }} className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg">
+            {getAvailableTags().length > 0 && (
+              <select value={filterTag} onChange={e => setFilterTag(e.target.value)} className="px-3 py-1.5 border rounded-lg text-sm">
+                <option value="">Все теги</option>
+                {getAvailableTags().map(tag => (
+                  <option key={tag.id} value={tag.id}>{tag.name}</option>
+                ))}
+              </select>
+            )}
+            {(filterLeader || filterDocStatus || filterPayStatus || filterUploadStatus || filterTag) && (
+              <button onClick={() => { setFilterLeader(''); setFilterDocStatus(''); setFilterPayStatus(''); setFilterUploadStatus(''); setFilterTag(''); }} className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg">
                 Сбросить фильтры
               </button>
             )}

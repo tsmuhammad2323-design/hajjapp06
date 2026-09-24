@@ -1,17 +1,62 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { Pilgrim, Leader, DocumentFile, Payment, Receipt, AuditLogEntry, DocumentType, User } from '../types';
+import type { Pilgrim, Leader, DocumentFile, Payment, Receipt, AuditLogEntry, DocumentType, User, Tag } from '../types';
 import {
   getPilgrim, updatePilgrim, getLeaders, getDocuments, uploadDocument, deleteDocument,
   getPayments, addPayment, getReceipts, getAuditLogs, getSession, getUser,
-  formatCurrency, calculateAge, getPassportExpiryStatus, getSystemSettings
+  formatCurrency, calculateAge, getPassportExpiryStatus, getSystemSettings, getAvailableTags, getTagById
 } from '../store/database';
 import { formatPhone } from '../utils/phone';
 import { numberToWords } from '../utils/numberToWords';
 import {
   ArrowLeft, Save, Upload, Trash2, Printer, FileText, CreditCard, History,
   User as UserIcon, Phone, Calendar, FileCheck, AlertCircle, CheckCircle,
-  XCircle, Download, Image, File, Eye, Edit3
+  XCircle, Download, Image, File, Eye, Edit3, Tag as TagIcon, Check
 } from 'lucide-react';
+
+// Компонент выбора тегов
+function TagSelector({ selectedTags, onChange }: { selectedTags: string[]; onChange: (tags: string[]) => void }) {
+  const availableTags = getAvailableTags();
+  
+  const toggleTag = (tagId: string) => {
+    if (selectedTags.includes(tagId)) {
+      onChange(selectedTags.filter(id => id !== tagId));
+    } else {
+      onChange([...selectedTags, tagId]);
+    }
+  };
+
+  if (availableTags.length === 0) {
+    return (
+      <div className="text-sm text-gray-400">
+        Нет доступных тегов. Создайте их в Настройки → Теги
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {availableTags.map(tag => {
+        const isSelected = selectedTags.includes(tag.id);
+        return (
+          <button
+            key={tag.id}
+            type="button"
+            onClick={() => toggleTag(tag.id)}
+            className={`px-3 py-1 rounded-full text-xs font-medium border-2 transition ${
+              isSelected 
+                ? 'text-white border-transparent' 
+                : 'bg-white border-gray-300 text-gray-600 hover:border-gray-400'
+            }`}
+            style={isSelected ? { backgroundColor: tag.color } : {}}
+          >
+            {isSelected && <Check className="w-3 h-3 inline mr-1" />}
+            {tag.name}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 interface PilgrimCardProps {
   pilgrimId: string;
@@ -607,7 +652,40 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
               </div>
             </div>
 
-            <div className="bg-white rounded-xl border p-6">
+            {/* Теги */}
+            <div className="bg-white rounded-xl border p-4 md:p-6">
+                <h3 className="font-semibold text-gray-700 mb-4 flex items-center gap-2">
+                  <TagIcon className="w-5 h-5 text-purple-500" /> Теги
+                </h3>
+                {editing ? (
+                  <TagSelector
+                    selectedTags={formData.tags || []}
+                    onChange={(tags: string[]) => setFormData({ ...formData, tags })}
+                  />
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {(pilgrim.tags || []).length === 0 ? (
+                      <span className="text-sm text-gray-400">Нет тегов</span>
+                    ) : (
+                      (pilgrim.tags || []).map(tagId => {
+                        const tag = getTagById(tagId);
+                        if (!tag) return null;
+                        return (
+                          <span
+                            key={tag.id}
+                            className="px-3 py-1 rounded-full text-xs font-medium text-white"
+                            style={{ backgroundColor: tag.color }}
+                          >
+                            {tag.name}
+                          </span>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-white rounded-xl border p-4 md:p-6">
               <h3 className="font-semibold text-gray-700 mb-4 flex items-center gap-2"><CreditCard className="w-5 h-5" /> Программа и оплата</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>

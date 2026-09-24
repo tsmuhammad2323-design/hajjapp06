@@ -58,6 +58,7 @@ export interface Pilgrim {
   totalAmount: number;
   leaderId: string;
   programType?: ProgramType; // Опционально для обратной совместимости
+  tags: string[]; // Array of tag IDs
   comments: string;
   additionalComments: string;
   documentStatus: DocumentStatus;
@@ -280,6 +281,8 @@ export interface SystemSettings {
   programEconomy: ProgramConfig;
   defaultProgram: ProgramType;
   receiptTemplateConfig: ReceiptTemplate;
+  availableTags: Tag[]; // Доступные теги для паломников
+  maxFolderNumber: number; // Максимальный номер папки (для авто-нумерации)
 }
 
 export const DEFAULT_SETTINGS: SystemSettings = {
@@ -298,7 +301,16 @@ export const DEFAULT_SETTINGS: SystemSettings = {
   programEconomy: { ...PROGRAMS.economy },
   defaultProgram: 'direct',
   receiptTemplateConfig: { ...DEFAULT_RECEIPT_TEMPLATE },
+  availableTags: [],
+  maxFolderNumber: 1500,
 };
+
+// ====== TAG ======
+export interface Tag {
+  id: string;
+  name: string;
+  color: string; // hex color like #FF5733
+}
 
 // ====== SESSION ======
 export interface Session {

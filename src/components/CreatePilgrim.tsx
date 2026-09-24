@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import type { Leader, User, ProgramType } from '../types';
-import { createPilgrim, getLeaders, getSystemSettings, formatCurrency } from '../store/database';
+import type { Leader, User, ProgramType, Tag } from '../types';
+import { createPilgrim, getLeaders, getSystemSettings, formatCurrency, generateNextFolderNumber, getAvailableTags } from '../store/database';
 import { formatPhone } from '../utils/phone';
-import { ArrowLeft, Save, UserPlus, Plane } from 'lucide-react';
+import { ArrowLeft, Save, UserPlus, Plane, Tag as TagIcon, Check } from 'lucide-react';
 
 interface CreatePilgrimProps {
   user: User;
@@ -16,10 +16,13 @@ export default function CreatePilgrim({ user, onBack, onCreated }: CreatePilgrim
     folderNumber: '', lastName: '', firstName: '', middleName: '',
     birthDate: '', passportExpiry: '', phone: '', totalAmount: 0,
     leaderId: '', programType: 'direct' as ProgramType,
+    tags: [] as string[],
     comments: '', additionalComments: ''
   });
   const [error, setError] = useState('');
   const settings = getSystemSettings();
+  const nextFolderNumber = generateNextFolderNumber();
+  const availableTags = getAvailableTags();
 
   useEffect(() => {
     setLeaders(getLeaders());
@@ -104,8 +107,17 @@ export default function CreatePilgrim({ user, onBack, onCreated }: CreatePilgrim
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Номер папки</label>
-                  <input value={form.folderNumber} onChange={e => setForm({ ...form, folderNumber: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" placeholder="П-XXX" />
+                  <label className="block text-sm font-medium text-gray-600 mb-1">
+                    Номер папки 
+                    <span className="text-xs text-blue-600 ml-1">(авто: {nextFolderNumber})</span>
+                  </label>
+                  <input 
+                    value={form.folderNumber} 
+                    onChange={e => setForm({ ...form, folderNumber: e.target.value })} 
+                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" 
+                    placeholder={nextFolderNumber}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Оставьте пустым для авто-нумерации (А01-А1500)</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-600 mb-1">Дата рождения</label>
@@ -197,6 +209,42 @@ export default function CreatePilgrim({ user, onBack, onCreated }: CreatePilgrim
               </div>
             </div>
           </div>
+
+          {/* Теги */}
+          {availableTags.length > 0 && (
+            <div className="bg-white rounded-xl border p-6">
+              <h3 className="font-semibold text-gray-700 mb-4 flex items-center gap-2">
+                <TagIcon className="w-5 h-5 text-purple-500" /> Теги
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {availableTags.map(tag => {
+                  const isSelected = form.tags.includes(tag.id);
+                  return (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      onClick={() => {
+                        if (isSelected) {
+                          setForm({ ...form, tags: form.tags.filter(id => id !== tag.id) });
+                        } else {
+                          setForm({ ...form, tags: [...form.tags, tag.id] });
+                        }
+                      }}
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium border-2 transition ${
+                        isSelected 
+                          ? 'text-white border-transparent' 
+                          : 'bg-white border-gray-300 text-gray-600 hover:border-gray-400'
+                      }`}
+                      style={isSelected ? { backgroundColor: tag.color } : {}}
+                    >
+                      {isSelected && <Check className="w-3 h-3 inline mr-1" />}
+                      {tag.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="flex gap-3">
             <button type="submit" className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 flex items-center gap-2">
