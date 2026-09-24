@@ -78,9 +78,10 @@ export default function CreatePilgrim({ user, onBack, onCreated }: CreatePilgrim
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-1">ФИО *</label>
                 <input 
-                  value={`${form.lastName} ${form.firstName} ${form.middleName}`.trim()} 
+                  value={`${form.lastName}${form.firstName ? ' ' + form.firstName : ''}${form.middleName ? ' ' + form.middleName : ''}`} 
                   onChange={e => {
-                    const parts = e.target.value.trim().split(/\s+/);
+                    const value = e.target.value;
+                    const parts = value.split(/\s+/).filter(p => p.length > 0);
                     setForm({ 
                       ...form, 
                       lastName: parts[0] || '', 

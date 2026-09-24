@@ -280,20 +280,21 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
                   <label className="block text-xs text-gray-500 mb-1">ФИО</label>
                   {editing ? (
                     <input 
-                      value={`${formData.lastName || ''} ${formData.firstName || ''} ${formData.middleName || ''}`.trim()} 
+                      value={`${formData.lastName || ''}${formData.firstName ? ' ' + formData.firstName : ''}${formData.middleName ? ' ' + formData.middleName : ''}`} 
                       onChange={e => {
-                        const parts = e.target.value.trim().split(/\s+/);
+                        const value = e.target.value;
+                        const parts = value.split(/\s+/).filter(p => p.length > 0);
                         setFormData({ 
                           ...formData, 
                           lastName: parts[0] || '', 
                           firstName: parts[1] || '', 
-                          middleName: parts[2] || '' 
+                          middleName: parts.slice(2).join(' ') || '' 
                         });
                       }}
                       className="w-full px-3 py-2 border rounded-lg text-sm" 
                       placeholder="Фамилия Имя Отчество"
                     />
-                  ) : <p className="text-sm font-medium">{`${pilgrim.lastName} ${pilgrim.firstName} ${pilgrim.middleName}`.trim() || '—'}</p>}
+                  ) : <p className="text-sm font-medium">{`${pilgrim.lastName}${pilgrim.firstName ? ' ' + pilgrim.firstName : ''}${pilgrim.middleName ? ' ' + pilgrim.middleName : ''}` || '—'}</p>}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
