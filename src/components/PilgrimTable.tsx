@@ -20,9 +20,7 @@ interface PilgrimTableProps {
 
 const COLUMN_DEFS = [
   { key: 'folderNumber', label: 'Папка', width: 80, sortable: true },
-  { key: 'lastName', label: 'Фамилия', width: 140, sortable: true },
-  { key: 'firstName', label: 'Имя', width: 120, sortable: true },
-  { key: 'middleName', label: 'Отчество', width: 130, sortable: true },
+  { key: 'fullName', label: 'ФИО', width: 280, sortable: true },
   { key: 'phone', label: 'Телефон', width: 140, sortable: false },
   { key: 'birthDate', label: 'Дата рождения', width: 110, sortable: true },
   { key: 'passportExpiry', label: 'Срок паспорта', width: 110, sortable: true },
@@ -84,8 +82,14 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
 
     if (settings.sortBy) {
       result.sort((a, b) => {
-        let va = (a as any)[settings.sortBy] || '';
-        let vb = (b as any)[settings.sortBy] || '';
+        let va: any, vb: any;
+        if (settings.sortBy === 'fullName') {
+          va = `${a.lastName} ${a.firstName} ${a.middleName}`.trim();
+          vb = `${b.lastName} ${b.firstName} ${b.middleName}`.trim();
+        } else {
+          va = (a as any)[settings.sortBy] || '';
+          vb = (b as any)[settings.sortBy] || '';
+        }
         if (settings.sortBy === 'leaderId') {
           const la = leaders.find(l => l.id === va);
           const lb = leaders.find(l => l.id === vb);
@@ -122,7 +126,7 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
       const pilgrim = pilgrims.find(p => p.id === editingCell.pilgrimId);
       if (!pilgrim) return;
       let data: any = {};
-      if (['folderNumber', 'lastName', 'firstName', 'middleName', 'phone', 'comments'].includes(editingCell.field)) {
+      if (['folderNumber', 'phone', 'comments'].includes(editingCell.field)) {
         data[editingCell.field] = editValue;
       } else if (editingCell.field === 'totalAmount') {
         data.totalAmount = parseFloat(editValue) || 0;
@@ -140,6 +144,22 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
     setEditingCell(null);
   };
 
+  const saveFullName = () => {
+    if (!editFullName) return;
+    try {
+      updatePilgrim(editFullName.pilgrimId, {
+        lastName: editFullName.lastName,
+        firstName: editFullName.firstName,
+        middleName: editFullName.middleName
+      });
+      loadData();
+      showNotification('success', 'ФИО обновлено');
+    } catch (err: any) {
+      showNotification('error', err.message || 'Ошибка сохранения');
+    }
+    setEditFullName(null);
+  };
+
   const toggleSelect = (id: string) => {
     const newSel = new Set(selected);
     if (newSel.has(id)) newSel.delete(id); else newSel.add(id);
@@ -155,6 +175,7 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
   const [bulkUploadStatus, setBulkUploadStatus] = useState('');
   const [showBulkLeader, setShowBulkLeader] = useState(false);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
+  const [editFullName, setEditFullName] = useState<{ pilgrimId: string; lastName: string; firstName: string; middleName: string } | null>(null);
 
   const handleBulkAction = (action: string) => {
     if (selected.size === 0) return;
@@ -291,6 +312,10 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
 
     const displayValue = (() => {
       switch (colKey) {
+        case 'fullName': {
+          const fullName = `${pilgrim.lastName} ${pilgrim.firstName} ${pilgrim.middleName}`.trim();
+          return fullName || '—';
+        }
         case 'leaderId': return getLeaderName(value);
         case 'totalAmount': return value ? `${value.toLocaleString()} ₽` : '—';
         case 'documentStatus': return renderStatusBadge('doc', value);
@@ -303,14 +328,26 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
       }
     })();
 
+    const editableFields = ['folderNumber', 'phone', 'totalAmount', 'leaderId', 'uploadStatus', 'comments'];
+    const isEditable = canEdit && (editableFields.includes(colKey) || colKey === 'fullName');
+
     return (
       <div
-        className={`truncate text-sm ${canEdit && ['folderNumber', 'lastName', 'firstName', 'middleName', 'phone', 'totalAmount', 'leaderId', 'uploadStatus', 'comments'].includes(colKey) ? 'cursor-pointer hover:bg-blue-50 rounded px-1 -mx-1' : ''}`}
+        className={`truncate text-sm ${isEditable ? 'cursor-pointer hover:bg-blue-50 rounded px-1 -mx-1' : ''}`}
         onDoubleClick={() => {
-          if (canEdit && ['folderNumber', 'lastName', 'firstName', 'middleName', 'phone', 'totalAmount', 'leaderId', 'uploadStatus', 'comments'].includes(colKey)) {
+          if (!canEdit) return;
+          if (colKey === 'fullName') {
+            setEditFullName({
+              pilgrimId: pilgrim.id,
+              lastName: pilgrim.lastName,
+              firstName: pilgrim.firstName,
+              middleName: pilgrim.middleName
+            });
+          } else if (editableFields.includes(colKey)) {
             handleCellEdit(pilgrim.id, colKey, colKey === 'leaderId' ? value : String(value || ''));
           }
         }}
+        title={colKey === 'fullName' ? `${pilgrim.lastName} ${pilgrim.firstName} ${pilgrim.middleName}`.trim() : undefined}
       >
         {displayValue}
       </div>
@@ -536,6 +573,50 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
             <div className="flex gap-2">
               <button onClick={applyBulkUpload} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Применить</button>
               <button onClick={() => setShowBulkUpload(false)} className="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50">Отмена</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit full name modal */}
+      {editFullName && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setEditFullName(null)}>
+          <div className="bg-white rounded-xl p-6 max-w-md w-full" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold mb-4">Редактировать ФИО</h3>
+            <div className="space-y-3 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Фамилия *</label>
+                <input
+                  type="text"
+                  value={editFullName.lastName}
+                  onChange={e => setEditFullName({ ...editFullName, lastName: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Имя *</label>
+                <input
+                  type="text"
+                  value={editFullName.firstName}
+                  onChange={e => setEditFullName({ ...editFullName, firstName: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Отчество</label>
+                <input
+                  type="text"
+                  value={editFullName.middleName}
+                  onChange={e => setEditFullName({ ...editFullName, middleName: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                  onKeyDown={e => e.key === 'Enter' && saveFullName()}
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={saveFullName} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Сохранить</button>
+              <button onClick={() => setEditFullName(null)} className="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50">Отмена</button>
             </div>
           </div>
         </div>

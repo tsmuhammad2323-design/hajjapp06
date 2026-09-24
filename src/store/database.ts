@@ -364,11 +364,29 @@ function sendTelegramNotification(leaderId: string, pilgrimId: string, message: 
 
 // ====== TABLE SETTINGS ======
 export function getTableSettings(): TableSettings {
-  return getOne<TableSettings>('table_settings') || {
-    visibleColumns: ['folderNumber', 'lastName', 'firstName', 'phone', 'leaderId', 'documentStatus', 'paymentStatus', 'uploadStatus'],
-    columnWidths: {}, pinnedColumns: ['lastName', 'firstName'],
+  const saved = getOne<TableSettings>('table_settings');
+  const defaults: TableSettings = {
+    visibleColumns: ['folderNumber', 'fullName', 'phone', 'leaderId', 'documentStatus', 'paymentStatus', 'uploadStatus'],
+    columnWidths: {}, pinnedColumns: ['fullName'],
     sortBy: 'createdAt', sortOrder: 'desc'
   };
+  if (!saved) return defaults;
+  
+  // Migration: replace old lastName/firstName/middleName with fullName
+  const oldCols = ['lastName', 'firstName', 'middleName'];
+  const hasOldCols = saved.visibleColumns.some(c => oldCols.includes(c));
+  if (hasOldCols) {
+    saved.visibleColumns = saved.visibleColumns.filter(c => !oldCols.includes(c));
+    if (!saved.visibleColumns.includes('fullName')) {
+      const idx = saved.visibleColumns.indexOf('folderNumber');
+      saved.visibleColumns.splice(idx + 1, 0, 'fullName');
+    }
+    saved.pinnedColumns = saved.pinnedColumns.filter(c => !oldCols.includes(c));
+    if (!saved.pinnedColumns.includes('fullName')) saved.pinnedColumns.push('fullName');
+    setOne('table_settings', saved);
+  }
+  
+  return saved;
 }
 export function setTableSettings(settings: TableSettings) {
   setOne('table_settings', settings);

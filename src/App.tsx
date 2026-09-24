@@ -54,9 +54,10 @@ export default function App() {
     const pilgrims = getPilgrimsForUser();
     const leaders = getLeaders();
     const csv = [
-      ['ID', 'Папка', 'Фамилия', 'Имя', 'Отчество', 'Телефон', 'Руководитель', 'Сумма', 'Документы', 'Оплата', 'Загрузка', 'Дата создания'].join(';'),
+      ['ID', 'Папка', 'ФИО', 'Телефон', 'Руководитель', 'Сумма', 'Документы', 'Оплата', 'Загрузка', 'Дата создания'].join(';'),
       ...pilgrims.map(p => [
-        p.id.slice(0, 8), p.folderNumber, p.lastName, p.firstName, p.middleName,
+        p.id.slice(0, 8), p.folderNumber,
+        `${p.lastName} ${p.firstName} ${p.middleName}`.trim(),
         p.phone, leaders.find(l => l.id === p.leaderId)?.fullName || '',
         p.totalAmount, p.documentStatus === 'complete' ? 'Полный' : 'Неполный',
         p.paymentStatus, p.uploadStatus || '', new Date(p.createdAt).toLocaleDateString('ru-RU')
