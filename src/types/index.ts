@@ -146,6 +146,53 @@ export interface TableSettings {
   sortOrder: 'asc' | 'desc';
 }
 
+// ====== CURRENCY ======
+export type Currency = 'RUB' | 'USD' | 'EUR' | 'KZT' | 'UZS' | 'TRY' | 'AED';
+
+export interface CurrencyConfig {
+  code: Currency;
+  symbol: string;
+  name: string;
+  position: 'before' | 'after';
+}
+
+export const CURRENCIES: Record<Currency, CurrencyConfig> = {
+  RUB: { code: 'RUB', symbol: '₽', name: 'Российский рубль', position: 'after' },
+  USD: { code: 'USD', symbol: '$', name: 'Доллар США', position: 'before' },
+  EUR: { code: 'EUR', symbol: '€', name: 'Евро', position: 'after' },
+  KZT: { code: 'KZT', symbol: '₸', name: 'Казахский тенге', position: 'after' },
+  UZS: { code: 'UZS', symbol: 'сўм', name: 'Узбекский сум', position: 'after' },
+  TRY: { code: 'TRY', symbol: '₺', name: 'Турецкая лира', position: 'after' },
+  AED: { code: 'AED', symbol: 'د.إ', name: 'Дирхам ОАЭ', position: 'after' },
+};
+
+// ====== SETTINGS ======
+export interface SystemSettings {
+  currency: Currency;
+  companyName: string;
+  companyAddress: string;
+  companyPhone: string;
+  companyInn: string;
+  telegramBotToken: string;
+  passportExpiryWarningDays: number;
+  receiptTemplate: string;
+  language: 'ru' | 'en';
+  dateFormat: string;
+}
+
+export const DEFAULT_SETTINGS: SystemSettings = {
+  currency: 'RUB',
+  companyName: 'Организация паломничества',
+  companyAddress: '',
+  companyPhone: '',
+  companyInn: '',
+  telegramBotToken: '',
+  passportExpiryWarningDays: 180,
+  receiptTemplate: 'default',
+  language: 'ru',
+  dateFormat: 'dd.MM.yyyy',
+};
+
 // ====== SESSION ======
 export interface Session {
   userId: string;

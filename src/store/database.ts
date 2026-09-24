@@ -2,8 +2,10 @@ import { v4 as uuidv4 } from 'uuid';
 import type {
   User, Leader, Pilgrim, DocumentFile, Payment, Receipt,
   AuditLogEntry, TelegramNotification, TableSettings, Session,
-  UserRole, DocumentType, DocumentStatus, PaymentStatus, UploadStatus, AuditAction
+  UserRole, DocumentType, DocumentStatus, PaymentStatus, UploadStatus, AuditAction,
+  SystemSettings, Currency
 } from '../types';
+import { DEFAULT_SETTINGS, CURRENCIES } from '../types';
 
 const DB_PREFIX = 'crm_';
 
@@ -390,6 +392,116 @@ export function getTableSettings(): TableSettings {
 }
 export function setTableSettings(settings: TableSettings) {
   setOne('table_settings', settings);
+}
+
+// ====== SYSTEM SETTINGS ======
+export function getSystemSettings(): SystemSettings {
+  const saved = getOne<SystemSettings>('system_settings');
+  return saved || DEFAULT_SETTINGS;
+}
+
+export function updateSystemSettings(settings: Partial<SystemSettings>): SystemSettings {
+  const current = getSystemSettings();
+  const updated = { ...current, ...settings };
+  setOne('system_settings', updated);
+  return updated;
+}
+
+export function formatCurrency(amount: number): string {
+  const settings = getSystemSettings();
+  const currency = CURRENCIES[settings.currency];
+  const formatted = amount.toLocaleString('ru-RU');
+  return currency.position === 'before' 
+    ? `${currency.symbol} ${formatted}` 
+    : `${formatted} ${currency.symbol}`;
+}
+
+// ====== ARCHIVE ======
+export function getArchivedPilgrims(): Pilgrim[] {
+  const session = getSession();
+  if (!session) return [];
+  const all = get<Pilgrim>('pilgrims');
+  if (session.role === 'admin' || session.role === 'employee') return all.filter(p => p.isArchived);
+  if (session.role === 'leader') return all.filter(p => p.leaderId === session.leaderId && p.isArchived);
+  return [];
+}
+
+export function restorePilgrim(id: string) {
+  const pilgrims = get<Pilgrim>('pilgrims');
+  const idx = pilgrims.findIndex(p => p.id === id);
+  if (idx === -1) throw new Error('Паломник не найден');
+  pilgrims[idx].isArchived = false;
+  pilgrims[idx].updatedAt = new Date().toISOString();
+  set('pilgrims', pilgrims);
+  const session = getSession();
+  addAuditLog('pilgrim_updated', 'pilgrim', id, `${pilgrims[idx].lastName} ${pilgrims[idx].firstName}`, session?.userId, 'Архив', 'Активен');
+}
+
+// ====== BACKUP & RESTORE ======
+export function exportBackup(): string {
+  const data = {
+    version: '1.0',
+    exportedAt: new Date().toISOString(),
+    users: get<User>('users'),
+    leaders: get<Leader>('leaders'),
+    pilgrims: get<Pilgrim>('pilgrims'),
+    documents: get<DocumentFile>('documents'),
+    payments: get<Payment>('payments'),
+    receipts: get<Receipt>('receipts'),
+    auditLogs: get<AuditLogEntry>('audit_logs'),
+    telegramNotifications: get<TelegramNotification>('telegram_notifications'),
+    settings: getSystemSettings(),
+    tableSettings: getTableSettings()
+  };
+  return JSON.stringify(data, null, 2);
+}
+
+export function importBackup(json: string): { success: boolean; error?: string } {
+  try {
+    const data = JSON.parse(json);
+    if (!data.version || !data.pilgrims) {
+      return { success: false, error: 'Неверный формат файла резервной копии' };
+    }
+    if (data.users) set('users', data.users);
+    if (data.leaders) set('leaders', data.leaders);
+    if (data.pilgrims) set('pilgrims', data.pilgrims);
+    if (data.documents) set('documents', data.documents);
+    if (data.payments) set('payments', data.payments);
+    if (data.receipts) set('receipts', data.receipts);
+    if (data.auditLogs) set('audit_logs', data.auditLogs);
+    if (data.telegramNotifications) set('telegram_notifications', data.telegramNotifications);
+    if (data.settings) setOne('system_settings', data.settings);
+    if (data.tableSettings) setOne('table_settings', data.tableSettings);
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || 'Ошибка импорта' };
+  }
+}
+
+// ====== UTILS ======
+export function calculateAge(birthDate: string): number {
+  if (!birthDate) return 0;
+  const today = new Date();
+  const birth = new Date(birthDate);
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age;
+}
+
+export function getPassportExpiryStatus(expiryDate: string): { status: 'valid' | 'warning' | 'expired' | 'empty'; daysLeft: number } {
+  if (!expiryDate) return { status: 'empty', daysLeft: 0 };
+  const settings = getSystemSettings();
+  const today = new Date();
+  const expiry = new Date(expiryDate);
+  const diffTime = expiry.getTime() - today.getTime();
+  const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  if (daysLeft < 0) return { status: 'expired', daysLeft };
+  if (daysLeft <= settings.passportExpiryWarningDays) return { status: 'warning', daysLeft };
+  return { status: 'valid', daysLeft };
 }
 
 // ====== SEED DATA ======

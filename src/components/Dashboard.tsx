@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import type { User } from '../types';
-import { getPilgrims, getLeaders, getPayments, getDocuments, getAuditLogs } from '../store/database';
+import { getPilgrims, getLeaders, getPayments, getDocuments, getAuditLogs, formatCurrency } from '../store/database';
 import { Users, FileCheck, CreditCard, TrendingUp, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
 
 interface DashboardProps {
@@ -51,7 +51,7 @@ export default function Dashboard({ user }: DashboardProps) {
 
   const cards = [
     { title: 'Паломники', value: stats.totalPilgrims, icon: Users, color: 'bg-blue-500', sub: `${stats.totalLeaders} руководителей` },
-    { title: 'Собрано средств', value: `${(stats.totalPaid / 1000).toFixed(0)}т ₽`, icon: CreditCard, color: 'bg-emerald-500', sub: `из ${(stats.totalAmount / 1000).toFixed(0)}т ₽` },
+    { title: 'Собрано средств', value: formatCurrency(stats.totalPaid), icon: CreditCard, color: 'bg-emerald-500', sub: `из ${formatCurrency(stats.totalAmount)}` },
     { title: 'Документы полные', value: stats.completeDocs, icon: FileCheck, color: 'bg-purple-500', sub: `${stats.incompleteDocs} неполных` },
     { title: 'Действий сегодня', value: stats.todayActions, icon: Clock, color: 'bg-amber-500', sub: `${stats.totalDocs} документов загружено` },
   ];

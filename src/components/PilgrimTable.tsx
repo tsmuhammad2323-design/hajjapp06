@@ -3,7 +3,7 @@ import type { Pilgrim, Leader, TableSettings, User } from '../types';
 import {
   getPilgrimsForUser, updatePilgrim, getLeaders, getSession,
   archivePilgrim, deletePilgrim, getTableSettings, setTableSettings as saveTableSettings,
-  getPilgrims
+  getPilgrims, getArchivedPilgrims, restorePilgrim, formatCurrency, calculateAge, getPassportExpiryStatus
 } from '../store/database';
 import {
   Search, Filter, Plus, Archive, Trash2, Download, Columns,
@@ -22,10 +22,10 @@ const COLUMN_DEFS = [
   { key: 'folderNumber', label: 'Папка', width: 80, sortable: true },
   { key: 'fullName', label: 'ФИО', width: 280, sortable: true },
   { key: 'phone', label: 'Телефон', width: 140, sortable: false },
-  { key: 'birthDate', label: 'Дата рождения', width: 110, sortable: true },
-  { key: 'passportExpiry', label: 'Срок паспорта', width: 110, sortable: true },
+  { key: 'birthDate', label: 'Возраст', width: 100, sortable: true },
+  { key: 'passportExpiry', label: 'Срок паспорта', width: 130, sortable: true },
   { key: 'leaderId', label: 'Руководитель', width: 160, sortable: true },
-  { key: 'totalAmount', label: 'Сумма', width: 100, sortable: true },
+  { key: 'totalAmount', label: 'Сумма', width: 120, sortable: true },
   { key: 'documentStatus', label: 'Документы', width: 110, sortable: true },
   { key: 'paymentStatus', label: 'Оплата', width: 100, sortable: true },
   { key: 'uploadStatus', label: 'Загрузка', width: 100, sortable: true },
@@ -49,13 +49,18 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
   const [showColumnPicker, setShowColumnPicker] = useState(false);
   const [showBulkMenu, setShowBulkMenu] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [showArchive, setShowArchive] = useState(false);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [showArchive]);
 
   const loadData = () => {
-    setPilgrims(getPilgrimsForUser());
+    if (showArchive) {
+      setPilgrims(getArchivedPilgrims());
+    } else {
+      setPilgrims(getPilgrimsForUser());
+    }
     setLeaders(getLeaders());
   };
 
@@ -317,13 +322,43 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
           return fullName || '—';
         }
         case 'leaderId': return getLeaderName(value);
-        case 'totalAmount': return value ? `${value.toLocaleString()} ₽` : '—';
+        case 'totalAmount': return value ? formatCurrency(value) : '—';
         case 'documentStatus': return renderStatusBadge('doc', value);
         case 'paymentStatus': return renderStatusBadge('pay', value);
         case 'uploadStatus': return value ? renderStatusBadge('upload', value) : <span className="text-gray-400">—</span>;
         case 'createdAt': return new Date(value).toLocaleDateString('ru-RU');
-        case 'birthDate': case 'passportExpiry':
-          return value ? new Date(value).toLocaleDateString('ru-RU') : '—';
+        case 'birthDate': {
+          if (!value) return '—';
+          const age = calculateAge(value);
+          return (
+            <div title={new Date(value).toLocaleDateString('ru-RU')}>
+              {age} <span className="text-gray-400 text-xs">лет</span>
+            </div>
+          );
+        }
+        case 'passportExpiry': {
+          if (!value) return '—';
+          const status = getPassportExpiryStatus(value);
+          const colors = {
+            valid: 'text-emerald-700',
+            warning: 'text-amber-700',
+            expired: 'text-red-700 font-semibold',
+            empty: 'text-gray-400'
+          };
+          const titles = {
+            valid: `Действителен ещё ${status.daysLeft} дн.`,
+            warning: `Истекает через ${status.daysLeft} дн.`,
+            expired: `Просрочен на ${Math.abs(status.daysLeft)} дн.`,
+            empty: ''
+          };
+          return (
+            <div className={colors[status.status]} title={titles[status.status]}>
+              {new Date(value).toLocaleDateString('ru-RU')}
+              {status.status === 'warning' && <span className="ml-1 text-xs">⚠️</span>}
+              {status.status === 'expired' && <span className="ml-1 text-xs">❌</span>}
+            </div>
+          );
+        }
         default: return value || '—';
       }
     })();
@@ -412,9 +447,18 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
               )}
             </div>
           )}
-          <button onClick={onCreateNew} className="px-3 md:px-4 py-2 bg-blue-600 text-white rounded-lg text-xs md:text-sm flex items-center gap-1 md:gap-1.5 hover:bg-blue-700 shadow-sm">
-            <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Новый паломник</span><span className="sm:hidden">Новый</span>
+          <button 
+            onClick={() => setShowArchive(!showArchive)} 
+            className={`px-2 md:px-3 py-2 border rounded-lg text-xs md:text-sm flex items-center gap-1 md:gap-1.5 ${showArchive ? 'bg-amber-50 border-amber-300 text-amber-700' : 'hover:bg-gray-100'}`}
+            title={showArchive ? 'Показать активных' : 'Показать архив'}
+          >
+            <Archive className="w-4 h-4" /> <span className="hidden sm:inline">{showArchive ? 'Архив' : 'Архив'}</span>
           </button>
+          {!showArchive && (
+            <button onClick={onCreateNew} className="px-3 md:px-4 py-2 bg-blue-600 text-white rounded-lg text-xs md:text-sm flex items-center gap-1 md:gap-1.5 hover:bg-blue-700 shadow-sm">
+              <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Новый паломник</span><span className="sm:hidden">Новый</span>
+            </button>
+          )}
         </div>
 
         {/* Filters */}
@@ -522,9 +566,19 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
                 ))}
                 <td className="px-2 py-1.5 text-center sticky right-0 bg-inherit z-10">
                   <div className="flex items-center justify-center gap-1">
-                    <button onClick={() => onOpenCard(pilgrim.id)} className="p-1 hover:bg-blue-100 rounded text-blue-600" title="Открыть карточку">
-                      <Eye className="w-4 h-4" />
-                    </button>
+                    {showArchive ? (
+                      <button 
+                        onClick={() => { restorePilgrim(pilgrim.id); loadData(); showNotification('success', 'Паломник восстановлен'); }} 
+                        className="p-1 hover:bg-emerald-100 rounded text-emerald-600" 
+                        title="Восстановить"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                      </button>
+                    ) : (
+                      <button onClick={() => onOpenCard(pilgrim.id)} className="p-1 hover:bg-blue-100 rounded text-blue-600" title="Открыть карточку">
+                        <Eye className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>

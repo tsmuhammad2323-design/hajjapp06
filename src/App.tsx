@@ -1,18 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import type { User } from './types';
-import { getSession, setSession, logout, seedDatabase, getUser, getPilgrimsForUser, getLeaders, getPayments, getDocuments } from './store/database';
+import { getSession, setSession, logout, seedDatabase, getUser, getPilgrimsForUser, getLeaders, getPayments, getDocuments, formatCurrency } from './store/database';
 import LoginPage from './components/LoginPage';
 import PilgrimTable from './components/PilgrimTable';
 import PilgrimCard from './components/PilgrimCard';
 import CreatePilgrim from './components/CreatePilgrim';
 import AdminPanel from './components/AdminPanel';
 import Dashboard from './components/Dashboard';
+import SettingsPage from './components/SettingsPage';
 import {
   LogOut, Shield, Settings, Home, User as UserIcon,
   ChevronRight, BarChart3, Download, Menu, X
 } from 'lucide-react';
 
-type Page = 'dashboard' | 'table' | 'card' | 'create' | 'admin';
+type Page = 'dashboard' | 'table' | 'card' | 'create' | 'admin' | 'settings';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -55,12 +56,13 @@ export default function App() {
     const pilgrims = getPilgrimsForUser();
     const leaders = getLeaders();
     const csv = [
-      ['ID', 'Папка', 'ФИО', 'Телефон', 'Руководитель', 'Сумма', 'Документы', 'Оплата', 'Загрузка', 'Дата создания'].join(';'),
+      ['ID', 'Папка', 'ФИО', 'Возраст', 'Телефон', 'Руководитель', 'Сумма', 'Документы', 'Оплата', 'Загрузка', 'Дата создания'].join(';'),
       ...pilgrims.map(p => [
         p.id.slice(0, 8), p.folderNumber,
         `${p.lastName} ${p.firstName} ${p.middleName}`.trim(),
+        p.birthDate ? `${Math.floor((new Date().getTime() - new Date(p.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))} лет` : '',
         p.phone, leaders.find(l => l.id === p.leaderId)?.fullName || '',
-        p.totalAmount, p.documentStatus === 'complete' ? 'Полный' : 'Неполный',
+        formatCurrency(p.totalAmount), p.documentStatus === 'complete' ? 'Полный' : 'Неполный',
         p.paymentStatus, p.uploadStatus || '', new Date(p.createdAt).toLocaleDateString('ru-RU')
       ].join(';'))
     ].join('\n');
@@ -129,13 +131,22 @@ export default function App() {
             <span>Паломники</span>
           </button>
           {user.role === 'admin' && (
-            <button
-              onClick={() => handleNavClick('admin')}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition ${page === 'admin' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'}`}
-            >
-              <Settings className="w-5 h-5 flex-shrink-0" />
-              <span>Админ-панель</span>
-            </button>
+            <>
+              <button
+                onClick={() => handleNavClick('admin')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition ${page === 'admin' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'}`}
+              >
+                <Settings className="w-5 h-5 flex-shrink-0" />
+                <span>Админ-панель</span>
+              </button>
+              <button
+                onClick={() => handleNavClick('settings')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition ${page === 'settings' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'}`}
+              >
+                <Settings className="w-5 h-5 flex-shrink-0" />
+                <span>Настройки</span>
+              </button>
+            </>
           )}
         </nav>
 
@@ -179,6 +190,7 @@ export default function App() {
               {page === 'card' && 'Карточка'}
               {page === 'create' && 'Новый паломник'}
               {page === 'admin' && 'Админ-панель'}
+              {page === 'settings' && 'Настройки'}
             </span>
           </div>
           <div className="flex items-center gap-1 md:gap-2">
@@ -223,6 +235,9 @@ export default function App() {
           )}
           {page === 'admin' && user.role === 'admin' && (
             <AdminPanel user={user} onBack={() => setPage('table')} />
+          )}
+          {page === 'settings' && user.role === 'admin' && (
+            <SettingsPage user={user} onBack={() => setPage('dashboard')} />
           )}
         </div>
       </main>

@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { Pilgrim, Leader, DocumentFile, Payment, Receipt, AuditLogEntry, DocumentType, User } from '../types';
 import {
   getPilgrim, updatePilgrim, getLeaders, getDocuments, uploadDocument, deleteDocument,
-  getPayments, addPayment, getReceipts, getAuditLogs, getSession, getUser
+  getPayments, addPayment, getReceipts, getAuditLogs, getSession, getUser,
+  formatCurrency, calculateAge, getPassportExpiryStatus, getSystemSettings
 } from '../store/database';
 import {
   ArrowLeft, Save, Upload, Trash2, Printer, FileText, CreditCard, History,
@@ -294,13 +295,38 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
                     <label className="block text-xs text-gray-500 mb-1">Дата рождения</label>
                     {editing ? (
                       <input type="date" value={formData.birthDate || ''} onChange={e => setFormData({ ...formData, birthDate: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" />
-                    ) : <p className="text-sm">{pilgrim.birthDate ? new Date(pilgrim.birthDate).toLocaleDateString('ru-RU') : '—'}</p>}
+                    ) : (
+                      <p className="text-sm">
+                        {pilgrim.birthDate ? (
+                          <>
+                            {new Date(pilgrim.birthDate).toLocaleDateString('ru-RU')} 
+                            <span className="text-gray-400 ml-2">({calculateAge(pilgrim.birthDate)} лет)</span>
+                          </>
+                        ) : '—'}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">Срок загранпаспорта</label>
                     {editing ? (
                       <input type="date" value={formData.passportExpiry || ''} onChange={e => setFormData({ ...formData, passportExpiry: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" />
-                    ) : <p className="text-sm">{pilgrim.passportExpiry ? new Date(pilgrim.passportExpiry).toLocaleDateString('ru-RU') : '—'}</p>}
+                    ) : (() => {
+                      if (!pilgrim.passportExpiry) return <p className="text-sm">—</p>;
+                      const status = getPassportExpiryStatus(pilgrim.passportExpiry);
+                      const colors = { valid: 'text-emerald-700', warning: 'text-amber-700', expired: 'text-red-700', empty: 'text-gray-400' };
+                      const labels = { 
+                        valid: `Действителен (${status.daysLeft} дн.)`, 
+                        warning: `Истекает через ${status.daysLeft} дн. ⚠️`, 
+                        expired: `Просрочен на ${Math.abs(status.daysLeft)} дн. ❌`, 
+                        empty: '' 
+                      };
+                      return (
+                        <p className={`text-sm font-medium ${colors[status.status]}`}>
+                          {new Date(pilgrim.passportExpiry).toLocaleDateString('ru-RU')}
+                          <span className="ml-2 text-xs">{labels[status.status]}</span>
+                        </p>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
@@ -423,18 +449,18 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
           <div className="max-w-3xl space-y-4">
             <div className="bg-white rounded-xl border p-6">
               <h3 className="font-semibold text-gray-700 mb-4">Информация об оплате</h3>
-              <div className="grid grid-cols-3 gap-4 mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                 <div className="bg-gray-50 rounded-lg p-3 text-center">
                   <p className="text-xs text-gray-500">Общая сумма</p>
-                  <p className="text-lg font-bold">{pilgrim.totalAmount.toLocaleString()} ₽</p>
+                  <p className="text-lg font-bold">{formatCurrency(pilgrim.totalAmount)}</p>
                 </div>
                 <div className="bg-emerald-50 rounded-lg p-3 text-center">
                   <p className="text-xs text-gray-500">Оплачено</p>
-                  <p className="text-lg font-bold text-emerald-700">{totalPaid.toLocaleString()} ₽</p>
+                  <p className="text-lg font-bold text-emerald-700">{formatCurrency(totalPaid)}</p>
                 </div>
                 <div className={`rounded-lg p-3 text-center ${remaining > 0 ? 'bg-red-50' : 'bg-blue-50'}`}>
                   <p className="text-xs text-gray-500">{remaining > 0 ? 'Остаток' : 'Переплата'}</p>
-                  <p className={`text-lg font-bold ${remaining > 0 ? 'text-red-700' : 'text-blue-700'}`}>{Math.abs(remaining).toLocaleString()} ₽</p>
+                  <p className={`text-lg font-bold ${remaining > 0 ? 'text-red-700' : 'text-blue-700'}`}>{formatCurrency(Math.abs(remaining))}</p>
                 </div>
               </div>
 
@@ -465,7 +491,7 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
                     return (
                       <div key={payment.id} className="flex items-center justify-between p-3 border rounded-lg">
                         <div>
-                          <p className="font-semibold">{payment.amount.toLocaleString()} ₽</p>
+                          <p className="font-semibold">{formatCurrency(payment.amount)}</p>
                           <p className="text-xs text-gray-500">{new Date(payment.paidAt).toLocaleString('ru-RU')} • {payment.method}</p>
                         </div>
                         {receipt && (
@@ -490,7 +516,7 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
                     <div key={receipt.id} className="flex items-center justify-between p-3 border rounded-lg">
                       <div>
                         <p className="font-medium text-sm">{receipt.number}</p>
-                        <p className="text-xs text-gray-500">{receipt.amount.toLocaleString()} ₽ • {new Date(receipt.createdAt).toLocaleString('ru-RU')}</p>
+                        <p className="text-xs text-gray-500">{formatCurrency(receipt.amount)} • {new Date(receipt.createdAt).toLocaleString('ru-RU')}</p>
                       </div>
                       <button onClick={() => handlePrintReceipt(receipt)} className="px-3 py-1.5 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-lg text-xs flex items-center gap-1.5">
                         <Printer className="w-3 h-3" /> Печать
