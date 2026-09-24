@@ -6,6 +6,7 @@ import {
   formatCurrency, calculateAge, getPassportExpiryStatus, getSystemSettings
 } from '../store/database';
 import { formatPhone } from '../utils/phone';
+import { numberToWords } from '../utils/numberToWords';
 import {
   ArrowLeft, Save, Upload, Trash2, Printer, FileText, CreditCard, History,
   User as UserIcon, Phone, Calendar, FileCheck, AlertCircle, CheckCircle,
@@ -117,38 +118,252 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
   const handlePrintReceipt = (receipt: Receipt) => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
+    
+    const amountInWords = numberToWords(receipt.amount);
+    const date = new Date(receipt.createdAt);
+    const day = date.getDate();
+    const month = date.getMonth() + 1;
+    const year = date.getFullYear();
+    const employee = getUser(receipt.createdBy)?.fullName || '________________________';
+    const settings = getSystemSettings();
+    
+    const receiptHTML = `
+      <div class="receipt">
+        <div class="receipt-header">
+          <div class="receipt-title">КВИТАНЦИЯ ОБ ОПЛАТЕ ХАДЖА</div>
+          <div class="receipt-meta">
+            <div>№ ${receipt.number}</div>
+            <div>Дата: «${day}» ${month < 10 ? '0' + month : month} ${year} г.</div>
+          </div>
+        </div>
+        
+        <div class="receipt-body">
+          <div class="field">
+            <div class="field-label">Принято от (ФИО плательщика):</div>
+            <div class="field-value">${receipt.pilgrimName}</div>
+          </div>
+          
+          <div class="field">
+            <div class="field-label">За оплату Хаджа за (ФИО паломника):</div>
+            <div class="field-value">${receipt.pilgrimName}</div>
+          </div>
+          
+          <div class="field">
+            <div class="field-label">Сумма прописью:</div>
+            <div class="field-value">${amountInWords}</div>
+          </div>
+          
+          <div class="field">
+            <div class="field-label">Сумма цифрами:</div>
+            <div class="field-value amount-digits">${receipt.amount.toLocaleString('ru-RU')} руб.</div>
+          </div>
+          
+          <div class="field">
+            <div class="field-label">Назначение платежа:</div>
+            <div class="field-value">Оплата услуг по организации паломничества (Хадж)</div>
+          </div>
+        </div>
+        
+        <div class="receipt-footer">
+          <div class="footer-row">
+            <div class="footer-field">
+              <div class="field-label">Исполнитель (принял средства):</div>
+              <div class="field-value">${employee}</div>
+            </div>
+          </div>
+          <div class="footer-row">
+            <div class="footer-field signature-field">
+              <div class="field-label">Подпись исполнителя:</div>
+              <div class="signature-line">_________________</div>
+            </div>
+            <div class="footer-field stamp-field">
+              <div class="field-label">М.П.</div>
+              <div class="stamp-circle"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    
     printWindow.document.write(`
-      <html><head><title>Квитанция ${receipt.number}</title>
-      <style>
-        body { font-family: 'Times New Roman', serif; padding: 40px; max-width: 600px; margin: 0 auto; }
-        .header { text-align: center; margin-bottom: 30px; }
-        .header h1 { font-size: 18px; margin: 0; }
-        .header p { font-size: 14px; color: #666; margin: 5px 0; }
-        .info { margin: 20px 0; }
-        .info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
-        .info-label { font-weight: bold; }
-        .amount { font-size: 24px; font-weight: bold; text-align: center; margin: 20px 0; padding: 15px; border: 2px solid #333; }
-        .footer { margin-top: 40px; display: flex; justify-content: space-between; }
-        .signature { border-top: 1px solid #333; padding-top: 5px; width: 200px; text-align: center; font-size: 12px; }
-      </style></head><body>
-      <div class="header">
-        <h1>КВИТАНЦИЯ ОБ ОПЛАТЕ</h1>
-        <p>№ ${receipt.number} от ${new Date(receipt.createdAt).toLocaleDateString('ru-RU')}</p>
-      </div>
-      <div class="info">
-        <div class="info-row"><span class="info-label">Плательщик:</span><span>${receipt.pilgrimName}</span></div>
-        <div class="info-row"><span class="info-label">Назначение:</span><span>Оплата услуг по организации паломничества</span></div>
-        <div class="info-row"><span class="info-label">Принял:</span><span>${getUser(receipt.createdBy)?.fullName || 'Сотрудник'}</span></div>
-      </div>
-      <div class="amount">${receipt.amount.toLocaleString('ru-RU')} ₽</div>
-      <div class="footer">
-        <div class="signature">Подпись плательщика</div>
-        <div class="signature">Подпись кассира</div>
-      </div>
-      </body></html>
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Квитанция ${receipt.number}</title>
+        <style>
+          @page {
+            size: A4;
+            margin: 0;
+          }
+          
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+          }
+          
+          body {
+            font-family: 'Times New Roman', 'Arial', serif;
+            font-size: 12pt;
+            line-height: 1.4;
+          }
+          
+          .page {
+            width: 210mm;
+            height: 297mm;
+            padding: 10mm;
+            display: flex;
+            flex-direction: column;
+          }
+          
+          .receipt {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 5mm;
+            border: 1px solid #ccc;
+          }
+          
+          .receipt-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8mm;
+            border-bottom: 2px solid #333;
+            padding-bottom: 3mm;
+          }
+          
+          .receipt-title {
+            font-size: 16pt;
+            font-weight: bold;
+            text-align: center;
+            flex: 1;
+          }
+          
+          .receipt-meta {
+            text-align: right;
+            font-size: 10pt;
+            white-space: nowrap;
+          }
+          
+          .receipt-body {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4mm;
+          }
+          
+          .field {
+            display: flex;
+            flex-direction: column;
+          }
+          
+          .field-label {
+            font-size: 10pt;
+            margin-bottom: 1mm;
+            color: #333;
+          }
+          
+          .field-value {
+            font-size: 12pt;
+            border-bottom: 1px solid #333;
+            padding: 2mm 0;
+            min-height: 6mm;
+          }
+          
+          .amount-digits {
+            font-size: 14pt;
+            font-weight: bold;
+          }
+          
+          .receipt-footer {
+            margin-top: 6mm;
+            display: flex;
+            flex-direction: column;
+            gap: 4mm;
+          }
+          
+          .footer-row {
+            display: flex;
+            gap: 5mm;
+          }
+          
+          .footer-field {
+            flex: 1;
+          }
+          
+          .signature-field {
+            flex: 2;
+          }
+          
+          .stamp-field {
+            flex: 1;
+            text-align: center;
+          }
+          
+          .signature-line {
+            border-bottom: 1px solid #333;
+            padding: 2mm 0;
+            margin-top: 2mm;
+          }
+          
+          .stamp-circle {
+            width: 25mm;
+            height: 25mm;
+            border: 2px dashed #999;
+            border-radius: 50%;
+            margin: 2mm auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 8pt;
+            color: #999;
+          }
+          
+          .cut-line {
+            width: 100%;
+            height: 0;
+            border-top: 2px dashed #666;
+            margin: 5mm 0;
+            position: relative;
+            text-align: center;
+          }
+          
+          .cut-line::before {
+            content: '✂';
+            position: absolute;
+            left: 5mm;
+            top: -8pt;
+            font-size: 14pt;
+            background: white;
+            padding: 0 2mm;
+          }
+          
+          @media print {
+            body {
+              margin: 0;
+            }
+            .page {
+              page-break-after: avoid;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="page">
+          ${receiptHTML}
+          <div class="cut-line"></div>
+          ${receiptHTML}
+        </div>
+      </body>
+      </html>
     `);
+    
     printWindow.document.close();
-    printWindow.print();
+    setTimeout(() => {
+      printWindow.print();
+    }, 250);
   };
 
   const getStatusBadge = (value: string, type: string) => {
