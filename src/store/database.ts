@@ -504,7 +504,7 @@ export function getPassportExpiryStatus(expiryDate: string): { status: 'valid' |
   const diffTime = expiry.getTime() - referenceDate.getTime();
   const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   
-  // 6 месяцев = примерно 180 дней
+  // Паспорт должен быть действителен минимум 6 месяцев (180 дней) ПОСЛЕ даты хаджа
   const MIN_PASSPORT_VALIDITY_DAYS = 180;
   
   if (daysLeft < 0) return { status: 'expired', daysLeft, referenceDate };

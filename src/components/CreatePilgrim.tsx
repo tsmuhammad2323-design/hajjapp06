@@ -39,6 +39,13 @@ export default function CreatePilgrim({ user, onBack, onCreated }: CreatePilgrim
     setForm({ ...form, programType, totalAmount: price });
   };
 
+  // Инициализация формы с программой по умолчанию
+  useEffect(() => {
+    if (!form.programType) {
+      handleProgramChange(settings.defaultProgram);
+    }
+  }, []);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');

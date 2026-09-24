@@ -43,6 +43,11 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
   const loadData = () => {
     const p = getPilgrim(pilgrimId);
     if (!p) { onBack(); return; }
+    // Миграция: если нет programType, устанавливаем по умолчанию
+    if (!p.programType) {
+      const settings = getSystemSettings();
+      p.programType = settings.defaultProgram;
+    }
     setPilgrim(p);
     setFormData(p);
     setLeaders(getLeaders());
