@@ -25,25 +25,142 @@ export interface Leader {
 // ====== DOCUMENT TYPES ======
 export type DocumentType = 'photo' | 'passport' | 'registration' | 'foreign_passport';
 
-export interface DocumentFile {
-  id: string;
-  pilgrimId: string;
-  type: DocumentType;
-  fileName: string;
-  fileSize: number;
-  mimeType: string;
-  uploadedAt: string;
-  uploadedBy: string;
-  dataUrl?: string;
-}
-
-export type DocumentStatus = 'complete' | 'incomplete';
-
 // ====== UPLOAD STATUS ======
 export type UploadStatus = '' | 'reserve' | 'main';
 
 // ====== PAYMENT STATUS ======
 export type PaymentStatus = 'not_paid' | 'partial' | 'paid' | 'overpaid';
+
+export type DocumentStatus = 'complete' | 'incomplete';
+
+// ====== PROGRAM TYPE ======
+export type ProgramType = 'direct' | 'economy';
+
+export interface ProgramConfig {
+  type: ProgramType;
+  name: string;
+  price: number;
+  description: string;
+}
+
+export const PROGRAMS: Record<ProgramType, ProgramConfig> = {
+  direct: { type: 'direct', name: 'Прямой рейс', price: 350000, description: 'Прямой перелёт без пересадок' },
+  economy: { type: 'economy', name: 'Эконом', price: 250000, description: 'Экономичный вариант с пересадками' },
+};
+
+// ====== CURRENCY ======
+export type Currency = 'RUB' | 'USD' | 'EUR' | 'KZT' | 'UZS' | 'TRY' | 'AED';
+
+export interface CurrencyConfig {
+  code: Currency;
+  symbol: string;
+  name: string;
+  position: 'before' | 'after';
+}
+
+export const CURRENCIES: Record<Currency, CurrencyConfig> = {
+  RUB: { code: 'RUB', symbol: '₽', name: 'Российский рубль', position: 'after' },
+  USD: { code: 'USD', symbol: '$', name: 'Доллар США', position: 'before' },
+  EUR: { code: 'EUR', symbol: '€', name: 'Евро', position: 'after' },
+  KZT: { code: 'KZT', symbol: '₸', name: 'Казахский тенге', position: 'after' },
+  UZS: { code: 'UZS', symbol: 'сўм', name: 'Узбекский сум', position: 'after' },
+  TRY: { code: 'TRY', symbol: '₺', name: 'Турецкая лира', position: 'after' },
+  AED: { code: 'AED', symbol: 'د.إ', name: 'Дирхам ОАЭ', position: 'after' },
+};
+
+// ====== TAG ======
+export interface Tag {
+  id: string;
+  name: string;
+  color: string;
+}
+
+// ====== RECEIPT TEMPLATE ======
+export interface ReceiptTemplate {
+  id: string;
+  name: string;
+  title: string;
+  headerLeft: string;
+  headerRight: string;
+  fields: ReceiptField[];
+  footerText: string;
+  showStamp: boolean;
+  showSignature: boolean;
+  copies: number;
+}
+
+export interface ReceiptField {
+  id: string;
+  label: string;
+  value: string;
+  isAmount?: boolean;
+  isLarge?: boolean;
+}
+
+export const DEFAULT_RECEIPT_TEMPLATE: ReceiptTemplate = {
+  id: 'default',
+  name: 'Стандартный шаблон',
+  title: 'КВИТАНЦИЯ ОБ ОПЛАТЕ ХАДЖА',
+  headerLeft: '',
+  headerRight: '№ {{number}}\nДата: «{{day}}» {{month}} {{year}} г.',
+  fields: [
+    { id: 'payer', label: 'Принято от (ФИО плательщика):', value: '{{pilgrimName}}' },
+    { id: 'purpose', label: 'За оплату Хаджа за (ФИО паломника):', value: '{{pilgrimName}}' },
+    { id: 'amountWords', label: 'Сумма прописью:', value: '{{amountWords}}' },
+    { id: 'amount', label: 'Сумма цифрами:', value: '{{amount}} руб.', isAmount: true },
+    { id: 'description', label: 'Назначение платежа:', value: 'Оплата услуг по организации паломничества (Хадж)' }
+  ],
+  footerText: 'Исполнитель (принял средства):',
+  showStamp: true,
+  showSignature: true,
+  copies: 2
+};
+
+// ====== SETTINGS ======
+export interface SystemSettings {
+  currency: Currency;
+  companyName: string;
+  companyAddress: string;
+  companyPhone: string;
+  companyInn: string;
+  telegramBotToken: string;
+  passportExpiryWarningDays: number;
+  receiptTemplate: string;
+  language: 'ru' | 'en';
+  dateFormat: string;
+  hajjDate: string;
+  programDirect: ProgramConfig;
+  programEconomy: ProgramConfig;
+  defaultProgram: ProgramType;
+  receiptTemplateConfig: ReceiptTemplate;
+  availableTags: Tag[];
+  maxFolderNumber: number;
+  backendEnabled: boolean;
+  backendUrl: string;
+  lastSyncAt?: string;
+}
+
+export const DEFAULT_SETTINGS: SystemSettings = {
+  currency: 'RUB',
+  companyName: 'Организация паломничества',
+  companyAddress: '',
+  companyPhone: '',
+  companyInn: '',
+  telegramBotToken: '',
+  passportExpiryWarningDays: 180,
+  receiptTemplate: 'default',
+  language: 'ru',
+  dateFormat: 'dd.MM.yyyy',
+  hajjDate: '2026-06-05',
+  programDirect: { ...PROGRAMS.direct },
+  programEconomy: { ...PROGRAMS.economy },
+  defaultProgram: 'direct',
+  receiptTemplateConfig: { ...DEFAULT_RECEIPT_TEMPLATE },
+  availableTags: [],
+  maxFolderNumber: 1500,
+  backendEnabled: false,
+  backendUrl: 'http://localhost:3001',
+};
 
 // ====== PILGRIM ======
 export interface Pilgrim {
@@ -57,14 +174,19 @@ export interface Pilgrim {
   phone: string;
   totalAmount: number;
   leaderId: string;
-  programType?: ProgramType; // Опционально для обратной совместимости
-  tags: string[]; // Array of tag IDs
+  programType?: ProgramType;
+  tags: string[];
+  hasPhoto: boolean;
+  hasPassport: boolean;
+  hasRegistration: boolean;
+  hasForeignPassport: boolean;
   comments: string;
   additionalComments: string;
   documentStatus: DocumentStatus;
   paymentStatus: PaymentStatus;
   uploadStatus: UploadStatus;
   isArchived: boolean;
+  customData?: Record<string, any>; // Данные пользовательских колонок
   createdAt: string;
   updatedAt: string;
   version: number;
@@ -95,24 +217,10 @@ export interface Receipt {
 
 // ====== AUDIT LOG ======
 export type AuditAction = 
-  | 'pilgrim_created'
-  | 'pilgrim_updated'
-  | 'pilgrim_deleted'
-  | 'pilgrim_archived'
-  | 'leader_changed'
-  | 'document_uploaded'
-  | 'document_replaced'
-  | 'document_deleted'
-  | 'payment_added'
-  | 'payment_changed'
-  | 'status_changed'
-  | 'receipt_created'
-  | 'telegram_sent'
-  | 'telegram_error'
-  | 'user_created'
-  | 'user_updated'
-  | 'login'
-  | 'logout';
+  | 'pilgrim_created' | 'pilgrim_updated' | 'pilgrim_deleted' | 'pilgrim_archived'
+  | 'leader_changed' | 'document_uploaded' | 'document_replaced' | 'document_deleted'
+  | 'payment_added' | 'payment_changed' | 'status_changed' | 'receipt_created'
+  | 'telegram_sent' | 'telegram_error' | 'user_created' | 'user_updated' | 'login' | 'logout';
 
 export interface AuditLogEntry {
   id: string;
@@ -142,174 +250,33 @@ export interface TelegramNotification {
 // ====== TABLE SETTINGS ======
 export interface TableSettings {
   visibleColumns: string[];
+  columnOrder: string[]; // Порядок всех колонок
   columnWidths: Record<string, number>;
+  columnLabels: Record<string, string>; // Кастомные названия колонок
   pinnedColumns: string[];
   sortBy: string;
   sortOrder: 'asc' | 'desc';
+  customColumns?: CustomColumn[];
 }
 
-// ====== CURRENCY ======
-export type Currency = 'RUB' | 'USD' | 'EUR' | 'KZT' | 'UZS' | 'TRY' | 'AED';
+// ====== CUSTOM COLUMNS ======
+export type CustomColumnType = 'text' | 'number' | 'date' | 'select' | 'checkbox' | 'url' | 'email';
 
-export interface CurrencyConfig {
-  code: Currency;
-  symbol: string;
-  name: string;
-  position: 'before' | 'after';
-}
-
-export const CURRENCIES: Record<Currency, CurrencyConfig> = {
-  RUB: { code: 'RUB', symbol: '₽', name: 'Российский рубль', position: 'after' },
-  USD: { code: 'USD', symbol: '$', name: 'Доллар США', position: 'before' },
-  EUR: { code: 'EUR', symbol: '€', name: 'Евро', position: 'after' },
-  KZT: { code: 'KZT', symbol: '₸', name: 'Казахский тенге', position: 'after' },
-  UZS: { code: 'UZS', symbol: 'сўм', name: 'Узбекский сум', position: 'after' },
-  TRY: { code: 'TRY', symbol: '₺', name: 'Турецкая лира', position: 'after' },
-  AED: { code: 'AED', symbol: 'د.إ', name: 'Дирхам ОАЭ', position: 'after' },
-};
-
-// ====== PROGRAM TYPE ======
-export type ProgramType = 'direct' | 'economy';
-
-export interface ProgramConfig {
-  type: ProgramType;
-  name: string;
-  price: number;
-  description: string;
-}
-
-export const PROGRAMS: Record<ProgramType, ProgramConfig> = {
-  direct: { 
-    type: 'direct', 
-    name: 'Прямой рейс', 
-    price: 350000, 
-    description: 'Прямой перелёт без пересадок, комфортные условия' 
-  },
-  economy: { 
-    type: 'economy', 
-    name: 'Эконом', 
-    price: 250000, 
-    description: 'Экономичный вариант с пересадками' 
-  },
-};
-
-// ====== RECEIPT TEMPLATE ======
-export interface ReceiptTemplate {
-  id: string;
-  name: string;
-  title: string;
-  headerLeft: string;
-  headerRight: string;
-  fields: ReceiptField[];
-  footerText: string;
-  showStamp: boolean;
-  showSignature: boolean;
-  copies: number; // Количество копий на листе (1 или 2)
-}
-
-export interface ReceiptField {
+export interface CustomColumnOption {
   id: string;
   label: string;
-  value: string; // Может содержать переменные: {{pilgrimName}}, {{amount}}, {{amountWords}} и т.д.
-  isAmount?: boolean;
-  isLarge?: boolean;
+  color?: string;
 }
 
-export const DEFAULT_RECEIPT_TEMPLATE: ReceiptTemplate = {
-  id: 'default',
-  name: 'Стандартный шаблон',
-  title: 'КВИТАНЦИЯ ОБ ОПЛАТЕ ХАДЖА',
-  headerLeft: '',
-  headerRight: '№ {{number}}\nДата: «{{day}}» {{month}} {{year}} г.',
-  fields: [
-    {
-      id: 'payer',
-      label: 'Принято от (ФИО плательщика):',
-      value: '{{pilgrimName}}',
-      isAmount: false,
-      isLarge: false
-    },
-    {
-      id: 'purpose',
-      label: 'За оплату Хаджа за (ФИО паломника):',
-      value: '{{pilgrimName}}',
-      isAmount: false,
-      isLarge: false
-    },
-    {
-      id: 'amountWords',
-      label: 'Сумма прописью:',
-      value: '{{amountWords}}',
-      isAmount: false,
-      isLarge: false
-    },
-    {
-      id: 'amount',
-      label: 'Сумма цифрами:',
-      value: '{{amount}} руб.',
-      isAmount: true,
-      isLarge: false
-    },
-    {
-      id: 'description',
-      label: 'Назначение платежа:',
-      value: 'Оплата услуг по организации паломничества (Хадж)',
-      isAmount: false,
-      isLarge: false
-    }
-  ],
-  footerText: 'Исполнитель (принял средства):',
-  showStamp: true,
-  showSignature: true,
-  copies: 2
-};
-
-// ====== SETTINGS ======
-export interface SystemSettings {
-  currency: Currency;
-  companyName: string;
-  companyAddress: string;
-  companyPhone: string;
-  companyInn: string;
-  telegramBotToken: string;
-  passportExpiryWarningDays: number;
-  receiptTemplate: string;
-  language: 'ru' | 'en';
-  dateFormat: string;
-  hajjDate: string; // Дата хаджа для проверки загранпаспорта
-  programDirect: ProgramConfig;
-  programEconomy: ProgramConfig;
-  defaultProgram: ProgramType;
-  receiptTemplateConfig: ReceiptTemplate;
-  availableTags: Tag[]; // Доступные теги для паломников
-  maxFolderNumber: number; // Максимальный номер папки (для авто-нумерации)
-}
-
-export const DEFAULT_SETTINGS: SystemSettings = {
-  currency: 'RUB',
-  companyName: 'Организация паломничества',
-  companyAddress: '',
-  companyPhone: '',
-  companyInn: '',
-  telegramBotToken: '',
-  passportExpiryWarningDays: 180,
-  receiptTemplate: 'default',
-  language: 'ru',
-  dateFormat: 'dd.MM.yyyy',
-  hajjDate: '2026-06-05',
-  programDirect: { ...PROGRAMS.direct },
-  programEconomy: { ...PROGRAMS.economy },
-  defaultProgram: 'direct',
-  receiptTemplateConfig: { ...DEFAULT_RECEIPT_TEMPLATE },
-  availableTags: [],
-  maxFolderNumber: 1500,
-};
-
-// ====== TAG ======
-export interface Tag {
+export interface CustomColumn {
   id: string;
   name: string;
-  color: string; // hex color like #FF5733
+  type: CustomColumnType;
+  options?: CustomColumnOption[]; // Для select
+  required?: boolean;
+  defaultValue?: any;
+  width?: number;
+  createdAt: string;
 }
 
 // ====== SESSION ======
@@ -318,11 +285,4 @@ export interface Session {
   role: UserRole;
   leaderId?: string;
   loginAt: string;
-}
-
-// ====== API RESPONSE ======
-export interface ApiResponse<T> {
-  success: boolean;
-  data?: T;
-  error?: string;
 }

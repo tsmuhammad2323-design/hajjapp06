@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import type { Leader, User, ProgramType, Tag } from '../types';
-import { createPilgrim, getLeaders, getSystemSettings, formatCurrency, generateNextFolderNumber, getAvailableTags } from '../store/database';
+import type { Leader, User, ProgramType } from '../types';
+import { createPilgrim, getLeaders, getSystemSettings, formatCurrency, generateNextFolderNumber, getAvailableTags, getPilgrims } from '../store/database';
 import { formatPhone } from '../utils/phone';
+import { validatePilgrim, checkPhoneUniqueness } from '../utils/validation';
 import { ArrowLeft, Save, UserPlus, Plane, Tag as TagIcon, Check } from 'lucide-react';
 
 interface CreatePilgrimProps {
@@ -27,7 +28,6 @@ export default function CreatePilgrim({ user, onBack, onCreated }: CreatePilgrim
   useEffect(() => {
     setLeaders(getLeaders());
     
-    // Установить программу по умолчанию и её цену
     const defaultProgram = settings.defaultProgram || 'direct';
     const defaultPrice = defaultProgram === 'direct' ? settings.programDirect.price : settings.programEconomy.price;
     
@@ -47,9 +47,31 @@ export default function CreatePilgrim({ user, onBack, onCreated }: CreatePilgrim
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!form.lastName.trim()) { setError('Укажите фамилию'); return; }
-    if (!form.firstName.trim()) { setError('Укажите имя'); return; }
-    if (!form.leaderId) { setError('Выберите руководителя'); return; }
+    
+    const validation = validatePilgrim({
+      lastName: form.lastName,
+      firstName: form.firstName,
+      middleName: form.middleName,
+      phone: form.phone,
+      birthDate: form.birthDate,
+      passportExpiry: form.passportExpiry,
+      totalAmount: form.totalAmount,
+      leaderId: form.leaderId
+    });
+    
+    if (!validation.valid) {
+      setError(validation.errors.join('. '));
+      return;
+    }
+    
+    const existingPilgrims = getPilgrims();
+    const existingPhones = existingPilgrims.map(p => p.phone);
+    const phoneCheck = checkPhoneUniqueness(form.phone, existingPhones);
+    if (!phoneCheck.unique) {
+      setError(phoneCheck.error!);
+      return;
+    }
+    
     try {
       const p = createPilgrim(form);
       onCreated(p.id);
@@ -60,23 +82,23 @@ export default function CreatePilgrim({ user, onBack, onCreated }: CreatePilgrim
 
   return (
     <div className="h-full flex flex-col bg-gray-50">
-      <div className="bg-white border-b px-6 py-4">
-        <div className="flex items-center gap-4">
+      <div className="bg-white border-b px-3 md:px-6 py-3 md:py-4">
+        <div className="flex items-center gap-3">
           <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-lg">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-xl font-bold flex items-center gap-2"><UserPlus className="w-6 h-6 text-blue-600" /> Новый паломник</h1>
-            <p className="text-sm text-gray-500">Заполните данные для создания карточки</p>
+            <h1 className="text-lg md:text-xl font-bold flex items-center gap-2"><UserPlus className="w-5 h-5 md:w-6 md:h-6 text-blue-600" /> Новый паломник</h1>
+            <p className="text-xs md:text-sm text-gray-500">Заполните данные для создания карточки</p>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-6">
-        <form onSubmit={handleSubmit} className="max-w-3xl space-y-6">
+      <div className="flex-1 overflow-auto p-3 md:p-6">
+        <form onSubmit={handleSubmit} className="max-w-3xl space-y-4 md:space-y-6">
           {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{error}</div>}
 
-          <div className="bg-white rounded-xl border p-6">
+          <div className="bg-white rounded-xl border p-4 md:p-6">
             <h3 className="font-semibold text-gray-700 mb-4">Основные данные</h3>
             <div className="space-y-4">
               <div>
@@ -103,7 +125,6 @@ export default function CreatePilgrim({ user, onBack, onCreated }: CreatePilgrim
                     placeholder="Отчество"
                   />
                 </div>
-                <p className="text-xs text-gray-400 mt-1">Заполните каждое поле отдельно</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
@@ -117,7 +138,6 @@ export default function CreatePilgrim({ user, onBack, onCreated }: CreatePilgrim
                     className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" 
                     placeholder={nextFolderNumber}
                   />
-                  <p className="text-xs text-gray-400 mt-1">Оставьте пустым для авто-нумерации (А01-А1500)</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-600 mb-1">Дата рождения</label>
@@ -131,7 +151,7 @@ export default function CreatePilgrim({ user, onBack, onCreated }: CreatePilgrim
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border p-6">
+          <div className="bg-white rounded-xl border p-4 md:p-6">
             <h3 className="font-semibold text-gray-700 mb-4 flex items-center gap-2">
               <Plane className="w-5 h-5 text-blue-500" /> Программа паломничества
             </h3>
@@ -163,7 +183,7 @@ export default function CreatePilgrim({ user, onBack, onCreated }: CreatePilgrim
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border p-6">
+          <div className="bg-white rounded-xl border p-4 md:p-6">
             <h3 className="font-semibold text-gray-700 mb-4">Контакты и руководитель</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -174,7 +194,6 @@ export default function CreatePilgrim({ user, onBack, onCreated }: CreatePilgrim
                   className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" 
                   placeholder="+7 (___) ___-__-__" 
                 />
-                <p className="text-xs text-gray-400 mt-1">Формат: +7 (XXX) XXX-XX-XX</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-1">Руководитель *</label>
@@ -191,28 +210,12 @@ export default function CreatePilgrim({ user, onBack, onCreated }: CreatePilgrim
                   onChange={e => setForm({ ...form, totalAmount: parseFloat(e.target.value) || 0 })} 
                   className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" 
                 />
-                <p className="text-xs text-gray-400 mt-1">Можно изменить после выбора программы</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border p-6">
-            <h3 className="font-semibold text-gray-700 mb-4">Комментарии</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Комментарии</label>
-                <textarea value={form.comments} onChange={e => setForm({ ...form, comments: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" rows={2} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Дополнительные комментарии</label>
-                <textarea value={form.additionalComments} onChange={e => setForm({ ...form, additionalComments: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" rows={2} />
-              </div>
-            </div>
-          </div>
-
-          {/* Теги */}
           {availableTags.length > 0 && (
-            <div className="bg-white rounded-xl border p-6">
+            <div className="bg-white rounded-xl border p-4 md:p-6">
               <h3 className="font-semibold text-gray-700 mb-4 flex items-center gap-2">
                 <TagIcon className="w-5 h-5 text-purple-500" /> Теги
               </h3>

@@ -1,62 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
-import type { Pilgrim, Leader, DocumentFile, Payment, Receipt, AuditLogEntry, DocumentType, User, Tag } from '../types';
+import React, { useState, useEffect } from 'react';
+import type { Pilgrim, Leader, Payment, Receipt, AuditLogEntry, User } from '../types';
 import {
-  getPilgrim, updatePilgrim, getLeaders, getDocuments, uploadDocument, deleteDocument,
-  getPayments, addPayment, getReceipts, getAuditLogs, getSession, getUser,
+  getPilgrim, updatePilgrim, getLeaders, getPayments, addPayment, getReceipts, getAuditLogs, getUser,
   formatCurrency, calculateAge, getPassportExpiryStatus, getSystemSettings, getAvailableTags, getTagById
 } from '../store/database';
 import { formatPhone } from '../utils/phone';
 import { numberToWords } from '../utils/numberToWords';
+import { exportPilgrimToPDF } from '../utils/pdfExport';
 import {
-  ArrowLeft, Save, Upload, Trash2, Printer, FileText, CreditCard, History,
-  User as UserIcon, Phone, Calendar, FileCheck, AlertCircle, CheckCircle,
-  XCircle, Download, Image, File, Eye, Edit3, Tag as TagIcon, Check
+  ArrowLeft, Save, Printer, FileText, CreditCard, History,
+  User as UserIcon, FileCheck, AlertCircle, CheckCircle,
+  Edit3, Tag as TagIcon, FileDown
 } from 'lucide-react';
-
-// Компонент выбора тегов
-function TagSelector({ selectedTags, onChange }: { selectedTags: string[]; onChange: (tags: string[]) => void }) {
-  const availableTags = getAvailableTags();
-  
-  const toggleTag = (tagId: string) => {
-    if (selectedTags.includes(tagId)) {
-      onChange(selectedTags.filter(id => id !== tagId));
-    } else {
-      onChange([...selectedTags, tagId]);
-    }
-  };
-
-  if (availableTags.length === 0) {
-    return (
-      <div className="text-sm text-gray-400">
-        Нет доступных тегов. Создайте их в Настройки → Теги
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-wrap gap-2">
-      {availableTags.map(tag => {
-        const isSelected = selectedTags.includes(tag.id);
-        return (
-          <button
-            key={tag.id}
-            type="button"
-            onClick={() => toggleTag(tag.id)}
-            className={`px-3 py-1 rounded-full text-xs font-medium border-2 transition ${
-              isSelected 
-                ? 'text-white border-transparent' 
-                : 'bg-white border-gray-300 text-gray-600 hover:border-gray-400'
-            }`}
-            style={isSelected ? { backgroundColor: tag.color } : {}}
-          >
-            {isSelected && <Check className="w-3 h-3 inline mr-1" />}
-            {tag.name}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 interface PilgrimCardProps {
   pilgrimId: string;
@@ -65,14 +20,9 @@ interface PilgrimCardProps {
   onRefresh: () => void;
 }
 
-const DOC_LABELS: Record<DocumentType, string> = {
-  photo: 'Фото', passport: 'Паспорт РФ', registration: 'Прописка', foreign_passport: 'Загранпаспорт'
-};
-
 export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: PilgrimCardProps) {
   const [pilgrim, setPilgrim] = useState<Pilgrim | null>(null);
   const [leaders, setLeaders] = useState<Leader[]>([]);
-  const [documents, setDocuments] = useState<DocumentFile[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
@@ -81,16 +31,24 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
   const [paymentAmount, setPaymentAmount] = useState('');
   const [activeTab, setActiveTab] = useState<'info' | 'documents' | 'payments' | 'history'>('info');
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [viewDoc, setViewDoc] = useState<DocumentFile | null>(null);
-  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   useEffect(() => { loadData(); }, [pilgrimId]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === 'p' && pilgrim) {
+        e.preventDefault();
+        exportPilgrimToPDF(pilgrim);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [pilgrim]);
 
   const loadData = () => {
     try {
       const p = getPilgrim(pilgrimId);
       if (!p) { onBack(); return; }
-      // Миграция: если нет programType, устанавливаем по умолчанию
       if (!p.programType) {
         const settings = getSystemSettings();
         p.programType = settings.defaultProgram;
@@ -98,12 +56,11 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
       setPilgrim(p);
       setFormData(p);
       setLeaders(getLeaders());
-      setDocuments(getDocuments(pilgrimId));
       setPayments(getPayments(pilgrimId));
       setReceipts(getReceipts(pilgrimId));
       setAuditLogs(getAuditLogs(pilgrimId));
     } catch (err) {
-      console.error('Error loading pilgrim data:', err);
+      console.error('Error loading pilgrim:', err);
       onBack();
     }
   };
@@ -125,28 +82,6 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
     }
   };
 
-  const handleFileUpload = async (type: DocumentType, file: File) => {
-    if (file.size > 10 * 1024 * 1024) {
-      showNotif('error', 'Файл слишком большой (макс. 10 МБ)');
-      return;
-    }
-    try {
-      await uploadDocument(pilgrimId, type, file);
-      loadData();
-      showNotif('success', 'Документ загружен');
-    } catch (err: any) {
-      showNotif('error', err.message || 'Ошибка загрузки');
-    }
-  };
-
-  const handleDeleteDoc = (docId: string) => {
-    if (confirm('Удалить документ?')) {
-      deleteDocument(docId);
-      loadData();
-      showNotif('success', 'Документ удалён');
-    }
-  };
-
   const handleAddPayment = () => {
     const amount = parseFloat(paymentAmount);
     if (!amount || amount <= 0) { showNotif('error', 'Введите корректную сумму'); return; }
@@ -154,7 +89,7 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
       addPayment(pilgrimId, amount);
       setPaymentAmount('');
       loadData();
-      showNotif('success', `Оплата ${amount.toLocaleString()} ₽ принята. Квитанция создана.`);
+      showNotif('success', `Оплата ${amount.toLocaleString()} ₽ принята`);
     } catch (err: any) {
       showNotif('error', err.message);
     }
@@ -173,7 +108,6 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
     const settings = getSystemSettings();
     const template = settings.receiptTemplateConfig;
     
-    // Функция замены переменных
     const replaceVars = (text: string): string => {
       return text
         .replace(/\{\{number\}\}/g, receipt.number)
@@ -186,7 +120,6 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
         .replace(/\{\{employee\}\}/g, employee);
     };
     
-    // Генерация полей квитанции
     const fieldsHTML = template.fields.map(field => `
       <div class="field">
         <div class="field-label">${field.label}</div>
@@ -194,33 +127,6 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
       </div>
     `).join('');
     
-    // Генерация подвала
-    const footerHTML = `
-      <div class="receipt-footer">
-        <div class="footer-row">
-          <div class="footer-field">
-            <div class="field-label">${template.footerText}</div>
-            <div class="field-value">${replaceVars('{{employee}}')}</div>
-          </div>
-        </div>
-        <div class="footer-row">
-          ${template.showSignature ? `
-            <div class="footer-field signature-field">
-              <div class="field-label">Подпись исполнителя:</div>
-              <div class="signature-line">_________________</div>
-            </div>
-          ` : ''}
-          ${template.showStamp ? `
-            <div class="footer-field stamp-field">
-              <div class="field-label">М.П.</div>
-              <div class="stamp-circle"></div>
-            </div>
-          ` : ''}
-        </div>
-      </div>
-    `;
-    
-    // Генерация одной квитанции
     const receiptHTML = `
       <div class="receipt">
         <div class="receipt-header">
@@ -228,14 +134,32 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
           <div class="receipt-title">${template.title}</div>
           <div class="receipt-meta">${replaceVars(template.headerRight).replace(/\n/g, '<br>')}</div>
         </div>
-        <div class="receipt-body">
-          ${fieldsHTML}
+        <div class="receipt-body">${fieldsHTML}</div>
+        <div class="receipt-footer">
+          <div class="footer-row">
+            <div class="footer-field">
+              <div class="field-label">${template.footerText}</div>
+              <div class="field-value">${replaceVars('{{employee}}')}</div>
+            </div>
+          </div>
+          <div class="footer-row">
+            ${template.showSignature ? `
+              <div class="footer-field signature-field">
+                <div class="field-label">Подпись исполнителя:</div>
+                <div class="signature-line">_________________</div>
+              </div>
+            ` : ''}
+            ${template.showStamp ? `
+              <div class="footer-field stamp-field">
+                <div class="field-label">М.П.</div>
+                <div class="stamp-circle"></div>
+              </div>
+            ` : ''}
+          </div>
         </div>
-        ${footerHTML}
       </div>
     `;
     
-    // Генерация страницы с нужным количеством копий
     const pageContent = template.copies === 2 
       ? `${receiptHTML}<div class="cut-line"></div>${receiptHTML}`
       : receiptHTML;
@@ -247,185 +171,38 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
         <meta charset="UTF-8">
         <title>Квитанция ${receipt.number}</title>
         <style>
-          @page {
-            size: A4;
-            margin: 0;
-          }
-          
-          * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-          }
-          
-          body {
-            font-family: 'Times New Roman', 'Arial', serif;
-            font-size: 12pt;
-            line-height: 1.4;
-          }
-          
-          .page {
-            width: 210mm;
-            height: 297mm;
-            padding: 10mm;
-            display: flex;
-            flex-direction: column;
-          }
-          
-          .receipt {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            padding: 5mm;
-            border: 1px solid #ccc;
-          }
-          
-          .receipt-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 8mm;
-            border-bottom: 2px solid #333;
-            padding-bottom: 3mm;
-          }
-          
-          .receipt-title {
-            font-size: 16pt;
-            font-weight: bold;
-            text-align: center;
-            flex: 1;
-          }
-          
-          .receipt-meta {
-            text-align: right;
-            font-size: 10pt;
-            white-space: nowrap;
-          }
-          
-          .receipt-body {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 4mm;
-          }
-          
-          .field {
-            display: flex;
-            flex-direction: column;
-          }
-          
-          .field-label {
-            font-size: 10pt;
-            margin-bottom: 1mm;
-            color: #333;
-          }
-          
-          .field-value {
-            font-size: 12pt;
-            border-bottom: 1px solid #333;
-            padding: 2mm 0;
-            min-height: 6mm;
-          }
-          
-          .amount-digits {
-            font-size: 14pt;
-            font-weight: bold;
-          }
-          
-          .large-field {
-            min-height: 10mm;
-          }
-          
-          .receipt-left {
-            text-align: left;
-            font-size: 10pt;
-          }
-          
-          .receipt-footer {
-            margin-top: 6mm;
-            display: flex;
-            flex-direction: column;
-            gap: 4mm;
-          }
-          
-          .footer-row {
-            display: flex;
-            gap: 5mm;
-          }
-          
-          .footer-field {
-            flex: 1;
-          }
-          
-          .signature-field {
-            flex: 2;
-          }
-          
-          .stamp-field {
-            flex: 1;
-            text-align: center;
-          }
-          
-          .signature-line {
-            border-bottom: 1px solid #333;
-            padding: 2mm 0;
-            margin-top: 2mm;
-          }
-          
-          .stamp-circle {
-            width: 25mm;
-            height: 25mm;
-            border: 2px dashed #999;
-            border-radius: 50%;
-            margin: 2mm auto;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 8pt;
-            color: #999;
-          }
-          
-          .cut-line {
-            width: 100%;
-            height: 0;
-            border-top: 2px dashed #666;
-            margin: 5mm 0;
-            position: relative;
-            text-align: center;
-          }
-          
-          .cut-line::before {
-            content: '✂';
-            position: absolute;
-            left: 5mm;
-            top: -8pt;
-            font-size: 14pt;
-            background: white;
-            padding: 0 2mm;
-          }
-          
-          @media print {
-            body {
-              margin: 0;
-            }
-            .page {
-              page-break-after: avoid;
-            }
-          }
+          @page { size: A4; margin: 0; }
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: 'Times New Roman', serif; font-size: 12pt; }
+          .page { width: 210mm; height: 297mm; padding: 10mm; display: flex; flex-direction: column; }
+          .receipt { flex: 1; display: flex; flex-direction: column; padding: 5mm; border: 1px solid #ccc; }
+          .receipt-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8mm; border-bottom: 2px solid #333; padding-bottom: 3mm; }
+          .receipt-title { font-size: 16pt; font-weight: bold; text-align: center; flex: 1; }
+          .receipt-meta { text-align: right; font-size: 10pt; }
+          .receipt-body { flex: 1; display: flex; flex-direction: column; gap: 4mm; }
+          .field { display: flex; flex-direction: column; }
+          .field-label { font-size: 10pt; margin-bottom: 1mm; }
+          .field-value { font-size: 12pt; border-bottom: 1px solid #333; padding: 2mm 0; min-height: 6mm; }
+          .amount-digits { font-size: 14pt; font-weight: bold; }
+          .receipt-footer { margin-top: 6mm; }
+          .footer-row { display: flex; gap: 5mm; margin-top: 4mm; }
+          .footer-field { flex: 1; }
+          .signature-field { flex: 2; }
+          .stamp-field { flex: 1; text-align: center; }
+          .signature-line { border-bottom: 1px solid #333; padding: 2mm 0; margin-top: 2mm; }
+          .stamp-circle { width: 25mm; height: 25mm; border: 2px dashed #999; border-radius: 50%; margin: 2mm auto; }
+          .cut-line { width: 100%; height: 0; border-top: 2px dashed #666; margin: 5mm 0; position: relative; }
+          .cut-line::before { content: '✂'; position: absolute; left: 5mm; top: -8pt; font-size: 14pt; background: white; padding: 0 2mm; }
         </style>
       </head>
       <body>
-        <div class="page">
-          ${pageContent}
-        </div>
+        <div class="page">${pageContent}</div>
       </body>
       </html>
     `);
     
     printWindow.document.close();
-    setTimeout(() => {
-      printWindow.print();
-    }, 250);
+    setTimeout(() => printWindow.print(), 250);
   };
 
   const getStatusBadge = (value: string, type: string) => {
@@ -462,30 +239,6 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
         </div>
       )}
 
-      {/* View document modal */}
-      {viewDoc && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setViewDoc(null)}>
-          <div className="bg-white rounded-xl max-w-3xl max-h-[90vh] overflow-auto p-4" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold">{DOC_LABELS[viewDoc.type]} — {viewDoc.fileName}</h3>
-              <button onClick={() => setViewDoc(null)} className="p-1 hover:bg-gray-100 rounded"><XCircle className="w-5 h-5" /></button>
-            </div>
-            {viewDoc.mimeType.startsWith('image/') ? (
-              <img src={viewDoc.dataUrl} alt={viewDoc.fileName} className="max-w-full max-h-[70vh] object-contain mx-auto" />
-            ) : (
-              <div className="text-center py-12 text-gray-400">
-                <File className="w-16 h-16 mx-auto mb-4" />
-                <p>Предпросмотр недоступен для данного типа файла</p>
-                <a href={viewDoc.dataUrl} download={viewDoc.fileName} className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg">
-                  <Download className="w-4 h-4" /> Скачать
-                </a>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Header */}
       <div className="bg-white border-b px-3 md:px-6 py-3 md:py-4">
         <div className="flex items-start md:items-center gap-2 md:gap-4 flex-wrap">
           <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-lg flex-shrink-0">
@@ -495,8 +248,6 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
             <h1 className="text-base md:text-xl font-bold truncate">{pilgrim.lastName} {pilgrim.firstName} {pilgrim.middleName}</h1>
             <div className="flex items-center gap-2 md:gap-3 mt-1 text-xs md:text-sm text-gray-500 flex-wrap">
               <span>Папка: {pilgrim.folderNumber || '—'}</span>
-              <span className="hidden md:inline">•</span>
-              <span className="hidden md:inline">ID: {pilgrim.id.slice(0, 8)}</span>
               <span className="hidden md:inline">•</span>
               <span className="truncate">Рук.: {leaders.find(l => l.id === pilgrim.leaderId)?.fullName || '—'}</span>
             </div>
@@ -522,17 +273,23 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
                 </button>
               </>
             )}
+            <button 
+              onClick={() => exportPilgrimToPDF(pilgrim)} 
+              className="flex-1 md:flex-none px-3 md:px-4 py-2 bg-purple-600 text-white rounded-lg text-xs md:text-sm flex items-center justify-center gap-1.5 hover:bg-purple-700"
+              title="Экспорт в PDF (Ctrl+P)"
+            >
+              <FileDown className="w-4 h-4" /> <span className="hidden sm:inline">PDF</span>
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="bg-white border-b px-2 md:px-6 overflow-x-auto">
         <div className="flex gap-0 min-w-max">
           {[
             { key: 'info', label: 'Информация', icon: UserIcon },
-            { key: 'documents', label: `Документы (${documents.length}/4)`, icon: FileCheck },
-            { key: 'payments', label: `Оплата (${totalPaid.toLocaleString()} ₽)`, icon: CreditCard },
+            { key: 'documents', label: `Документы (${[pilgrim.hasPhoto, pilgrim.hasPassport, pilgrim.hasRegistration, pilgrim.hasForeignPassport].filter(Boolean).length}/4)`, icon: FileCheck },
+            { key: 'payments', label: `Оплата (${formatCurrency(totalPaid)})`, icon: CreditCard },
             { key: 'history', label: 'История', icon: History },
           ].map(tab => (
             <button
@@ -546,35 +303,19 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
         </div>
       </div>
 
-      {/* Content */}
       <div className="flex-1 overflow-auto p-3 md:p-6">
         {activeTab === 'info' && (
           <div className="max-w-3xl space-y-4 md:space-y-6">
-            <div className="bg-white rounded-xl border p-6">
+            <div className="bg-white rounded-xl border p-4 md:p-6">
               <h3 className="font-semibold text-gray-700 mb-4 flex items-center gap-2"><UserIcon className="w-5 h-5" /> Основная информация</h3>
               <div className="space-y-4">
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">ФИО</label>
                   {editing ? (
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                      <input 
-                        value={formData.lastName || ''} 
-                        onChange={e => setFormData({ ...formData, lastName: e.target.value })}
-                        className="w-full px-3 py-2 border rounded-lg text-sm" 
-                        placeholder="Фамилия"
-                      />
-                      <input 
-                        value={formData.firstName || ''} 
-                        onChange={e => setFormData({ ...formData, firstName: e.target.value })}
-                        className="w-full px-3 py-2 border rounded-lg text-sm" 
-                        placeholder="Имя"
-                      />
-                      <input 
-                        value={formData.middleName || ''} 
-                        onChange={e => setFormData({ ...formData, middleName: e.target.value })}
-                        className="w-full px-3 py-2 border rounded-lg text-sm" 
-                        placeholder="Отчество"
-                      />
+                      <input value={formData.lastName || ''} onChange={e => setFormData({ ...formData, lastName: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Фамилия" />
+                      <input value={formData.firstName || ''} onChange={e => setFormData({ ...formData, firstName: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Имя" />
+                      <input value={formData.middleName || ''} onChange={e => setFormData({ ...formData, middleName: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Отчество" />
                     </div>
                   ) : <p className="text-sm font-medium">{`${pilgrim.lastName} ${pilgrim.firstName} ${pilgrim.middleName}`.trim() || '—'}</p>}
                 </div>
@@ -626,9 +367,9 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
               </div>
             </div>
 
-            <div className="bg-white rounded-xl border p-6">
-              <h3 className="font-semibold text-gray-700 mb-4 flex items-center gap-2"><Phone className="w-5 h-5" /> Контакты</h3>
-              <div className="grid grid-cols-2 gap-4">
+            <div className="bg-white rounded-xl border p-4 md:p-6">
+              <h3 className="font-semibold text-gray-700 mb-4 flex items-center gap-2">Контакты</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Телефон</label>
                   {editing ? (
@@ -652,40 +393,50 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
               </div>
             </div>
 
-            {/* Теги */}
             <div className="bg-white rounded-xl border p-4 md:p-6">
-                <h3 className="font-semibold text-gray-700 mb-4 flex items-center gap-2">
-                  <TagIcon className="w-5 h-5 text-purple-500" /> Теги
-                </h3>
-                {editing ? (
-                  <TagSelector
-                    selectedTags={formData.tags || []}
-                    onChange={(tags: string[]) => setFormData({ ...formData, tags })}
-                  />
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {(pilgrim.tags || []).length === 0 ? (
-                      <span className="text-sm text-gray-400">Нет тегов</span>
-                    ) : (
-                      (pilgrim.tags || []).map(tagId => {
-                        const tag = getTagById(tagId);
-                        if (!tag) return null;
-                        return (
-                          <span
-                            key={tag.id}
-                            className="px-3 py-1 rounded-full text-xs font-medium text-white"
-                            style={{ backgroundColor: tag.color }}
-                          >
-                            {tag.name}
-                          </span>
-                        );
-                      })
-                    )}
-                  </div>
-                )}
-              </div>
+              <h3 className="font-semibold text-gray-700 mb-4 flex items-center gap-2"><TagIcon className="w-5 h-5 text-purple-500" /> Теги</h3>
+              {editing ? (
+                <div className="flex flex-wrap gap-2">
+                  {getAvailableTags().map(tag => {
+                    const isSelected = (formData.tags || []).includes(tag.id);
+                    return (
+                      <button
+                        key={tag.id}
+                        type="button"
+                        onClick={() => {
+                          const newTags = isSelected 
+                            ? (formData.tags || []).filter(id => id !== tag.id)
+                            : [...(formData.tags || []), tag.id];
+                          setFormData({ ...formData, tags: newTags });
+                        }}
+                        className={`px-3 py-1 rounded-full text-xs font-medium border-2 transition ${isSelected ? 'text-white border-transparent' : 'bg-white border-gray-300 text-gray-600'}`}
+                        style={isSelected ? { backgroundColor: tag.color } : {}}
+                      >
+                        {tag.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {(pilgrim.tags || []).length === 0 ? (
+                    <span className="text-sm text-gray-400">Нет тегов</span>
+                  ) : (
+                    (pilgrim.tags || []).map(tagId => {
+                      const tag = getTagById(tagId);
+                      if (!tag) return null;
+                      return (
+                        <span key={tag.id} className="px-3 py-1 rounded-full text-xs font-medium text-white" style={{ backgroundColor: tag.color }}>
+                          {tag.name}
+                        </span>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
 
-              <div className="bg-white rounded-xl border p-4 md:p-6">
+            <div className="bg-white rounded-xl border p-4 md:p-6">
               <h3 className="font-semibold text-gray-700 mb-4 flex items-center gap-2"><CreditCard className="w-5 h-5" /> Программа и оплата</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -718,28 +469,6 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
                     <input type="number" value={formData.totalAmount || 0} onChange={e => setFormData({ ...formData, totalAmount: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border rounded-lg text-sm" />
                   ) : <p className="text-sm font-semibold">{formatCurrency(pilgrim.totalAmount)}</p>}
                 </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Статус загрузки</label>
-                  {editing ? (
-                    <select value={formData.uploadStatus || ''} onChange={e => setFormData({ ...formData, uploadStatus: e.target.value as any })} className="w-full px-3 py-2 border rounded-lg text-sm">
-                      <option value="">—</option>
-                      <option value="reserve">Резерв</option>
-                      <option value="main">Основа</option>
-                    </select>
-                  ) : <div>{pilgrim.uploadStatus ? getStatusBadge(pilgrim.uploadStatus, 'upload') : <span className="text-sm text-gray-400">—</span>}</div>}
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-xs text-gray-500 mb-1">Комментарии</label>
-                  {editing ? (
-                    <textarea value={formData.comments || ''} onChange={e => setFormData({ ...formData, comments: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" rows={2} />
-                  ) : <p className="text-sm">{pilgrim.comments || '—'}</p>}
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-xs text-gray-500 mb-1">Дополнительные комментарии</label>
-                  {editing ? (
-                    <textarea value={formData.additionalComments || ''} onChange={e => setFormData({ ...formData, additionalComments: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm" rows={2} />
-                  ) : <p className="text-sm">{pilgrim.additionalComments || '—'}</p>}
-                </div>
               </div>
             </div>
           </div>
@@ -747,55 +476,46 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
 
         {activeTab === 'documents' && (
           <div className="max-w-3xl space-y-4">
-            <div className="bg-white rounded-xl border p-6">
+            <div className="bg-white rounded-xl border p-4 md:p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-gray-700">Документы паломника</h3>
                 {getStatusBadge(pilgrim.documentStatus, 'doc')}
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                {(['photo', 'passport', 'registration', 'foreign_passport'] as DocumentType[]).map(type => {
-                  const doc = documents.find(d => d.type === type);
-                  return (
-                    <div key={type} className={`border rounded-xl p-4 ${doc ? 'border-emerald-200 bg-emerald-50/30' : 'border-dashed border-gray-300 bg-gray-50'}`}>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium">{DOC_LABELS[type]}</span>
-                        {doc ? (
-                          <CheckCircle className="w-5 h-5 text-emerald-500" />
-                        ) : (
-                          <AlertCircle className="w-5 h-5 text-amber-500" />
-                        )}
-                      </div>
-                      {doc ? (
-                        <div className="space-y-2">
-                          <p className="text-xs text-gray-500 truncate">{doc.fileName}</p>
-                          <p className="text-xs text-gray-400">{(doc.fileSize / 1024).toFixed(1)} КБ • {new Date(doc.uploadedAt).toLocaleDateString('ru-RU')}</p>
-                          <div className="flex gap-2">
-                            <button onClick={() => setViewDoc(doc)} className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 flex items-center gap-1">
-                              <Eye className="w-3 h-3" /> Просмотр
-                            </button>
-                            {canEdit && (
-                              <>
-                                <button onClick={() => fileInputRefs.current[type]?.click()} className="text-xs px-2 py-1 bg-amber-100 text-amber-700 rounded hover:bg-amber-200 flex items-center gap-1">
-                                  <Upload className="w-3 h-3" /> Заменить
-                                </button>
-                                <button onClick={() => handleDeleteDoc(doc.id)} className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 flex items-center gap-1">
-                                  <Trash2 className="w-3 h-3" />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      ) : canEdit ? (
-                        <button onClick={() => fileInputRefs.current[type]?.click()} className="w-full py-3 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition flex items-center justify-center gap-2">
-                          <Upload className="w-4 h-4" /> Загрузить
-                        </button>
-                      ) : (
-                        <p className="text-sm text-gray-400">Не загружен</p>
-                      )}
-                      <input ref={el => { fileInputRefs.current[type] = el; }} type="file" className="hidden" accept="image/*,.pdf" onChange={e => { if (e.target.files?.[0]) handleFileUpload(type, e.target.files[0]); e.target.value = ''; }} />
+              <div className="space-y-3">
+                {[
+                  { key: 'hasPhoto', label: 'Фото', desc: 'Фотография 3x4' },
+                  { key: 'hasPassport', label: 'Паспорт РФ', desc: 'Копия паспорта' },
+                  { key: 'hasRegistration', label: 'Прописка', desc: 'Копия прописки' },
+                  { key: 'hasForeignPassport', label: 'Загранпаспорт', desc: 'Копия загранпаспорта' }
+                ].map(doc => (
+                  <label key={doc.key} className="flex items-center gap-3 p-4 border rounded-lg cursor-pointer hover:bg-gray-50 transition">
+                    <input
+                      type="checkbox"
+                      checked={(pilgrim as any)[doc.key]}
+                      onChange={e => {
+                        updatePilgrim(pilgrimId, { [doc.key]: e.target.checked });
+                        loadData();
+                      }}
+                      className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+                    />
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">{doc.label}</div>
+                      <div className="text-sm text-gray-500">{doc.desc}</div>
                     </div>
-                  );
-                })}
+                    {(pilgrim as any)[doc.key] ? (
+                      <CheckCircle className="w-6 h-6 text-emerald-500" />
+                    ) : (
+                      <AlertCircle className="w-6 h-6 text-amber-500" />
+                    )}
+                  </label>
+                ))}
+              </div>
+              <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-900">
+                  <strong>Статус:</strong> {pilgrim.hasPhoto && pilgrim.hasPassport && pilgrim.hasRegistration && pilgrim.hasForeignPassport 
+                    ? '✅ Все документы собраны' 
+                    : '⚠️ Не все документы предоставлены'}
+                </p>
               </div>
             </div>
           </div>
@@ -803,7 +523,7 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
 
         {activeTab === 'payments' && (
           <div className="max-w-3xl space-y-4">
-            <div className="bg-white rounded-xl border p-6">
+            <div className="bg-white rounded-xl border p-4 md:p-6">
               <h3 className="font-semibold text-gray-700 mb-4">Информация об оплате</h3>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                 <div className="bg-gray-50 rounded-lg p-3 text-center">
@@ -836,7 +556,7 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
               )}
             </div>
 
-            <div className="bg-white rounded-xl border p-6">
+            <div className="bg-white rounded-xl border p-4 md:p-6">
               <h3 className="font-semibold text-gray-700 mb-4">История оплат</h3>
               {payments.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-4">Оплат пока нет</p>
@@ -861,33 +581,12 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
                 </div>
               )}
             </div>
-
-            <div className="bg-white rounded-xl border p-6">
-              <h3 className="font-semibold text-gray-700 mb-4">Квитанции</h3>
-              {receipts.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-4">Квитанций пока нет</p>
-              ) : (
-                <div className="space-y-2">
-                  {receipts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map(receipt => (
-                    <div key={receipt.id} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div>
-                        <p className="font-medium text-sm">{receipt.number}</p>
-                        <p className="text-xs text-gray-500">{formatCurrency(receipt.amount)} • {new Date(receipt.createdAt).toLocaleString('ru-RU')}</p>
-                      </div>
-                      <button onClick={() => handlePrintReceipt(receipt)} className="px-3 py-1.5 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-lg text-xs flex items-center gap-1.5">
-                        <Printer className="w-3 h-3" /> Печать
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
         )}
 
         {activeTab === 'history' && (
           <div className="max-w-3xl">
-            <div className="bg-white rounded-xl border p-6">
+            <div className="bg-white rounded-xl border p-4 md:p-6">
               <h3 className="font-semibold text-gray-700 mb-4">История изменений</h3>
               {auditLogs.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-4">История пуста</p>
@@ -901,11 +600,6 @@ export default function PilgrimCard({ pilgrimId, user, onBack, onRefresh }: Pilg
                           <span className="text-xs text-gray-400">{new Date(log.createdAt).toLocaleString('ru-RU')}</span>
                         </div>
                         <p className="text-sm text-gray-700">{log.userName}</p>
-                        {log.oldValue && log.newValue && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            <span className="text-red-500">{log.oldValue.slice(0, 50)}</span> → <span className="text-emerald-600">{log.newValue.slice(0, 50)}</span>
-                          </p>
-                        )}
                       </div>
                     </div>
                   ))}
