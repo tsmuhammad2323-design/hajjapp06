@@ -576,6 +576,22 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
     );
   };
 
+  // Автоматически добавляем новые пользовательские колонки в visibleColumns
+  useEffect(() => {
+    const customColumns = settings.customColumns || [];
+    const customKeys = customColumns.map(c => `custom_${c.id}`);
+    const missingKeys = customKeys.filter(key => !settings.visibleColumns.includes(key));
+    
+    if (missingKeys.length > 0) {
+      const newSettings = {
+        ...settings,
+        visibleColumns: [...settings.visibleColumns, ...missingKeys]
+      };
+      setSettings(newSettings);
+      saveTableSettings(newSettings);
+    }
+  }, [settings.customColumns]);
+
   const visibleCols = COLUMN_DEFS.filter((c: any) => settings.visibleColumns.includes(c.key));
 
   return (

@@ -158,6 +158,7 @@ export function createPilgrim(data: Partial<Pilgrim>): Pilgrim {
     hasPassport: data.hasPassport || false,
     hasRegistration: data.hasRegistration || false,
     hasForeignPassport: data.hasForeignPassport || false,
+    customData: data.customData || {},
     comments: data.comments || '',
     additionalComments: data.additionalComments || '',
     documentStatus: 'incomplete', paymentStatus: 'not_paid', uploadStatus: '',
@@ -178,7 +179,18 @@ export function updatePilgrim(id: string, data: Partial<Pilgrim>, checkVersion =
     throw new Error('CONFLICT: Запись была изменена другим пользователем');
   }
   
-  pilgrims[idx] = { ...old, ...data, updatedAt: new Date().toISOString(), version: old.version + 1 };
+  // Правильно объединяем customData
+  const mergedCustomData = data.customData 
+    ? { ...(old.customData || {}), ...data.customData }
+    : old.customData || {};
+  
+  pilgrims[idx] = { 
+    ...old, 
+    ...data, 
+    customData: mergedCustomData,
+    updatedAt: new Date().toISOString(), 
+    version: old.version + 1 
+  };
   
   // Auto-compute document status based on checkboxes
   const hasAll = pilgrims[idx].hasPhoto && 

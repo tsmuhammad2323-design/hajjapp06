@@ -33,9 +33,11 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
       createdAt: new Date().toISOString()
     };
 
+    const columnKey = `custom_${column.id}`;
     const updatedSettings = {
       ...settings,
-      customColumns: [...customColumns, column]
+      customColumns: [...customColumns, column],
+      visibleColumns: [...(settings.visibleColumns || []), columnKey]
     };
 
     setTableSettings(updatedSettings);
@@ -48,9 +50,11 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
   const handleDeleteColumn = (id: string) => {
     if (!confirm('Удалить эту колонку? Данные будут потеряны.')) return;
 
+    const columnKey = `custom_${id}`;
     const updatedSettings = {
       ...settings,
-      customColumns: customColumns.filter(c => c.id !== id)
+      customColumns: customColumns.filter(c => c.id !== id),
+      visibleColumns: (settings.visibleColumns || []).filter(key => key !== columnKey)
     };
 
     setTableSettings(updatedSettings);
