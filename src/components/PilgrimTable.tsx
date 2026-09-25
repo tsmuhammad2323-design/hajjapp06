@@ -4,7 +4,7 @@ import {
   getPilgrimsForUser, updatePilgrim, getLeaders,
   archivePilgrim, deletePilgrim, getTableSettings, setTableSettings as saveTableSettings,
   getArchivedPilgrims, restorePilgrim, formatCurrency, calculateAge, getPassportExpiryStatus,
-  getSystemSettings, getAvailableTags, getTagById
+  getSystemSettings, getAvailableTags, getTagById, getDeletedPilgrims, restoreDeletedPilgrim
 } from '../store/database';
 import { formatPhone } from '../utils/phone';
 import { exportPilgrimsListToPDF } from '../utils/pdfExport';
@@ -48,22 +48,60 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
   const [showBulkMenu, setShowBulkMenu] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showArchive, setShowArchive] = useState(false);
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState<{ show: boolean; pilgrimId: string | null; pilgrimName: string }>({ show: false, pilgrimId: null, pilgrimName: '' });
+  const [deleteComment, setDeleteComment] = useState('');
   const [showImportDocs, setShowImportDocs] = useState(false);
   const [importJsonData, setImportJsonData] = useState<string>('');
 
   useEffect(() => {
     loadData();
-  }, [showArchive]);
+  }, [showArchive, showDeleted]);
 
   const loadData = () => {
     let pilgrimsList;
     if (showArchive) {
       pilgrimsList = getArchivedPilgrims();
+    } else if (showDeleted) {
+      pilgrimsList = getDeletedPilgrims();
     } else {
       pilgrimsList = getPilgrimsForUser();
     }
     setPilgrims(pilgrimsList);
     setLeaders(getLeaders());
+  };
+
+  const handleDeleteClick = (pilgrimId: string, pilgrimName: string) => {
+    setShowDeleteModal({ show: true, pilgrimId, pilgrimName });
+    setDeleteComment('');
+  };
+
+  const handleDeleteConfirm = () => {
+    if (!showDeleteModal.pilgrimId) return;
+    if (!deleteComment.trim()) {
+      showNotification('error', 'Укажите причину удаления');
+      return;
+    }
+    
+    try {
+      deletePilgrim(showDeleteModal.pilgrimId, deleteComment);
+      showNotification('success', 'Паломник удалён');
+      setShowDeleteModal({ show: false, pilgrimId: null, pilgrimName: '' });
+      setDeleteComment('');
+      loadData();
+    } catch (err: any) {
+      showNotification('error', err.message || 'Ошибка удаления');
+    }
+  };
+
+  const handleRestoreDeleted = (pilgrimId: string) => {
+    try {
+      restoreDeletedPilgrim(pilgrimId);
+      showNotification('success', 'Паломник восстановлен');
+      loadData();
+    } catch (err: any) {
+      showNotification('error', err.message || 'Ошибка восстановления');
+    }
   };
 
   const showNotification = (type: 'success' | 'error', text: string) => {
@@ -664,7 +702,38 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
             <RefreshCw className="w-4 h-4" /> <span className="hidden sm:inline">Обновить</span>
           </button>
           <div className="flex-1" />
-          {!showArchive && (
+          
+          {/* Переключатели: Активные / Архив / Удалённые */}
+          <div className="flex gap-1 border rounded-lg p-1 bg-white">
+            <button
+              onClick={() => { setShowArchive(false); setShowDeleted(false); }}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${
+                !showArchive && !showDeleted ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              Активные
+            </button>
+            <button
+              onClick={() => { setShowArchive(true); setShowDeleted(false); }}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${
+                showArchive ? 'bg-amber-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <Archive className="w-3 h-3 inline mr-1" />
+              Архив
+            </button>
+            <button
+              onClick={() => { setShowArchive(false); setShowDeleted(true); }}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${
+                showDeleted ? 'bg-red-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <Trash2 className="w-3 h-3 inline mr-1" />
+              Удалённые
+            </button>
+          </div>
+
+          {!showArchive && !showDeleted && (
             <button onClick={onCreateNew} className="px-3 md:px-4 py-2 bg-blue-600 text-white rounded-lg text-xs md:text-sm flex items-center gap-1 md:gap-1.5 hover:bg-blue-700 shadow-sm">
               <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Новый паломник</span><span className="sm:hidden">Новый</span>
             </button>
@@ -837,11 +906,14 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
                   </div>
                 </th>
               ))}
+              <th className="w-32 px-3 py-2 border-b text-center text-xs font-semibold text-gray-600 uppercase sticky right-0 bg-gray-100 z-20">
+                Действия
+              </th>
             </tr>
           </thead>
           <tbody>
             {filteredPilgrims.map((pilgrim, idx) => (
-              <tr key={pilgrim.id} className={`border-b hover:bg-blue-50/50 transition ${selected.has(pilgrim.id) ? 'bg-blue-50' : idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
+              <tr key={pilgrim.id} className={`border-b hover:bg-blue-50/50 transition ${selected.has(pilgrim.id) ? 'bg-blue-50' : idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'} ${pilgrim.isDeleted ? 'bg-red-50/30' : ''}`}>
                 <td className="px-2 py-1.5 border-r text-center sticky left-0 bg-inherit z-10">
                   <input type="checkbox" checked={selected.has(pilgrim.id)} onChange={() => toggleSelect(pilgrim.id)} className="rounded" />
                 </td>
@@ -850,6 +922,84 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
                     {renderCell(pilgrim, col.key, col)}
                   </td>
                 ))}
+                <td className="px-2 py-1.5 text-center sticky right-0 bg-inherit z-10">
+                  <div className="flex items-center justify-center gap-1">
+                    {showDeleted ? (
+                      // Кнопки для удалённых паломников
+                      <>
+                        <button
+                          onClick={() => handleRestoreDeleted(pilgrim.id)}
+                          className="p-1.5 hover:bg-emerald-100 rounded text-emerald-600"
+                          title="Восстановить"
+                        >
+                          <RefreshCw className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm('Полностью удалить паломника из базы данных? Это действие необратимо!')) {
+                              // Здесь можно добавить функцию полного удаления
+                              showNotification('success', 'Функция полного удаления будет добавлена позже');
+                            }
+                          }}
+                          className="p-1.5 hover:bg-red-100 rounded text-red-600"
+                          title="Удалить навсегда"
+                        >
+                          <XCircle className="w-4 h-4" />
+                        </button>
+                      </>
+                    ) : showArchive ? (
+                      // Кнопки для архивных паломников
+                      <button
+                        onClick={() => {
+                          try {
+                            restorePilgrim(pilgrim.id);
+                            showNotification('success', 'Паломник восстановлен из архива');
+                            loadData();
+                          } catch (err: any) {
+                            showNotification('error', err.message || 'Ошибка восстановления');
+                          }
+                        }}
+                        className="p-1.5 hover:bg-emerald-100 rounded text-emerald-600"
+                        title="Восстановить из архива"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                      </button>
+                    ) : (
+                      // Кнопки для активных паломников
+                      <>
+                        <button
+                          onClick={() => onOpenCard(pilgrim.id)}
+                          className="p-1.5 hover:bg-blue-100 rounded text-blue-600"
+                          title="Открыть карточку"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            try {
+                              archivePilgrim(pilgrim.id);
+                              showNotification('success', 'Паломник архивирован');
+                              loadData();
+                            } catch (err: any) {
+                              showNotification('error', err.message || 'Ошибка архивации');
+                            }
+                          }}
+                          className="p-1.5 hover:bg-amber-100 rounded text-amber-600"
+                          title="Архивировать"
+                        >
+                          <Archive className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteClick(pilgrim.id, `${pilgrim.lastName} ${pilgrim.firstName} ${pilgrim.middleName}`)}
+                          className="p-1.5 hover:bg-red-100 rounded text-red-600"
+                          title="Удалить"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </td>
               </tr>
             ))}
             {filteredPilgrims.length === 0 && (
@@ -865,6 +1015,63 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
         </table>
         </div>
       </div>
+
+      {/* Модальное окно удаления */}
+      {showDeleteModal.show && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                <Trash2 className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Удалить паломника</h3>
+                <p className="text-sm text-gray-500">{showDeleteModal.pilgrimName}</p>
+              </div>
+            </div>
+
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+              <p className="text-sm text-red-800">
+                <strong>Внимание!</strong> Паломник будет помечен как удалённый. Номер папки останется зарезервированным. 
+                Вы сможете восстановить его позже в разделе "Удалённые".
+              </p>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Причина удаления <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={deleteComment}
+                onChange={e => setDeleteComment(e.target.value)}
+                placeholder="Укажите причину удаления (например: Дубликат, Ошибка ввода, Отмена поездки)"
+                className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg text-sm focus:border-red-500 focus:outline-none"
+                rows={3}
+                autoFocus
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleDeleteConfirm}
+                disabled={!deleteComment.trim()}
+                className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" /> Удалить
+              </button>
+              <button
+                onClick={() => {
+                  setShowDeleteModal({ show: false, pilgrimId: null, pilgrimName: '' });
+                  setDeleteComment('');
+                }}
+                className="px-6 py-2.5 border-2 border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50"
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
