@@ -197,53 +197,132 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
         </div>
       )}
 
-      {/* Список колонок */}
-      {customColumns.length === 0 ? (
-        <div className="text-center py-8 text-gray-400">
-          <Settings className="w-12 h-12 mx-auto mb-2 opacity-30" />
-          <p>Пользовательские колонки не созданы</p>
-          <p className="text-xs mt-1">Добавьте колонки для хранения дополнительной информации</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {customColumns.map(column => (
-            <div
-              key={column.id}
-              className="bg-white border rounded-lg p-3 flex items-center gap-3"
-            >
-              <GripVertical className="w-4 h-4 text-gray-400 cursor-move" />
-              
-              <div className="flex-1">
-                <div className="font-medium text-sm">{column.name}</div>
-                <div className="text-xs text-gray-500">
-                  {columnTypes.find(t => t.value === column.type)?.icon}{' '}
-                  {columnTypes.find(t => t.value === column.type)?.label}
-                  {column.type === 'select' && column.options && (
-                    <span className="ml-2">({column.options.length} вариантов)</span>
-                  )}
+      {/* Список всех колонок */}
+      <div className="space-y-4">
+        {/* Базовые колонки */}
+        <div>
+          <h4 className="font-medium text-sm text-gray-700 mb-2">Системные колонки</h4>
+          <div className="space-y-2">
+            {[
+              { key: 'folderNumber', label: 'Папка', type: '📁 Текст' },
+              { key: 'fullName', label: 'ФИО', type: '👤 Текст' },
+              { key: 'phone', label: 'Телефон', type: '📞 Текст' },
+              { key: 'birthDate', label: 'Возраст', type: '🎂 Дата' },
+              { key: 'passportExpiry', label: 'Срок паспорта', type: '📅 Дата' },
+              { key: 'leaderId', label: 'Руководитель', type: '👥 Выбор' },
+              { key: 'programType', label: 'Программа', type: '📋 Выбор' },
+              { key: 'tags', label: 'Теги', type: '🏷️ Текст' },
+              { key: 'totalAmount', label: 'Сумма', type: '💰 Число' },
+              { key: 'hasPhoto', label: 'Фото', type: '📷 Флажок' },
+              { key: 'hasPassport', label: 'Паспорт', type: '📄 Флажок' },
+              { key: 'hasRegistration', label: 'Прописка', type: '🏠 Флажок' },
+              { key: 'hasForeignPassport', label: 'Загран', type: '✈️ Флажок' },
+              { key: 'documentStatus', label: 'Статус', type: '✅ Выбор' },
+              { key: 'paymentStatus', label: 'Оплата', type: '💳 Выбор' },
+              { key: 'uploadStatus', label: 'Загрузка', type: '📤 Выбор' },
+              { key: 'comments', label: 'Комментарий', type: '💬 Текст' },
+              { key: 'createdAt', label: 'Создан', type: '📆 Дата' }
+            ].map(col => (
+              <div
+                key={col.key}
+                className="bg-gray-50 border border-gray-200 rounded-lg p-3 flex items-center gap-3"
+              >
+                <div className="flex-1">
+                  <div className="font-medium text-sm text-gray-700">{col.label}</div>
+                  <div className="text-xs text-gray-500">{col.type}</div>
                 </div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={settings.visibleColumns.includes(col.key)}
+                    onChange={e => {
+                      const newVisibleColumns = e.target.checked
+                        ? [...settings.visibleColumns, col.key]
+                        : settings.visibleColumns.filter((k: string) => k !== col.key);
+                      const updatedSettings = { ...settings, visibleColumns: newVisibleColumns };
+                      setSettings(updatedSettings);
+                      setTableSettings(updatedSettings);
+                      onColumnsChange();
+                    }}
+                    className="rounded"
+                  />
+                  <span className="text-xs text-gray-600">Показывать</span>
+                </label>
               </div>
-
-              <div className="flex gap-1">
-                <button
-                  onClick={() => setEditingColumn(column.id)}
-                  className="p-1.5 hover:bg-gray-100 rounded text-gray-600"
-                  title="Редактировать"
-                >
-                  <Settings className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => handleDeleteColumn(column.id)}
-                  className="p-1.5 hover:bg-red-50 rounded text-red-500"
-                  title="Удалить"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      )}
+
+        {/* Пользовательские колонки */}
+        <div>
+          <h4 className="font-medium text-sm text-gray-700 mb-2">Пользовательские колонки</h4>
+          {customColumns.length === 0 ? (
+            <div className="text-center py-6 text-gray-400 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+              <Settings className="w-10 h-10 mx-auto mb-2 opacity-30" />
+              <p className="text-sm">Пользовательские колонки не созданы</p>
+              <p className="text-xs mt-1">Нажмите "Добавить колонку" выше</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {customColumns.map(column => (
+                <div
+                  key={column.id}
+                  className="bg-white border rounded-lg p-3 flex items-center gap-3"
+                >
+                  <GripVertical className="w-4 h-4 text-gray-400 cursor-move" />
+                  
+                  <div className="flex-1">
+                    <div className="font-medium text-sm">{column.name}</div>
+                    <div className="text-xs text-gray-500">
+                      {columnTypes.find(t => t.value === column.type)?.icon}{' '}
+                      {columnTypes.find(t => t.value === column.type)?.label}
+                      {column.type === 'select' && column.options && (
+                        <span className="ml-2">({column.options.length} вариантов)</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <label className="flex items-center gap-2 cursor-pointer mr-2">
+                    <input
+                      type="checkbox"
+                      checked={settings.visibleColumns.includes(`custom_${column.id}`)}
+                      onChange={e => {
+                        const columnKey = `custom_${column.id}`;
+                        const newVisibleColumns = e.target.checked
+                          ? [...settings.visibleColumns, columnKey]
+                          : settings.visibleColumns.filter((k: string) => k !== columnKey);
+                        const updatedSettings = { ...settings, visibleColumns: newVisibleColumns };
+                        setSettings(updatedSettings);
+                        setTableSettings(updatedSettings);
+                        onColumnsChange();
+                      }}
+                      className="rounded"
+                    />
+                    <span className="text-xs text-gray-600">Показывать</span>
+                  </label>
+
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setEditingColumn(column.id)}
+                      className="p-1.5 hover:bg-gray-100 rounded text-gray-600"
+                      title="Редактировать"
+                    >
+                      <Settings className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteColumn(column.id)}
+                      className="p-1.5 hover:bg-red-50 rounded text-red-500"
+                      title="Удалить"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Модальное окно редактирования */}
       {editingColumn && (

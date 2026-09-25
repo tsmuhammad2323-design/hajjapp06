@@ -618,7 +618,7 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
           <button onClick={() => setShowFilters(!showFilters)} className={`px-2 md:px-3 py-2 border rounded-lg text-xs md:text-sm flex items-center gap-1 md:gap-1.5 ${showFilters ? 'bg-blue-50 border-blue-300 text-blue-700' : 'hover:bg-gray-100'}`}>
             <Filter className="w-4 h-4" /> <span className="hidden sm:inline">Фильтры</span>
           </button>
-          <button onClick={() => setShowColumnPicker(!showColumnPicker)} className="px-2 md:px-3 py-2 border rounded-lg text-xs md:text-sm flex items-center gap-1 md:gap-1.5 hover:bg-gray-100">
+          <button onClick={() => setShowColumnPicker(!showColumnPicker)} className={`px-2 md:px-3 py-2 border rounded-lg text-xs md:text-sm flex items-center gap-1 md:gap-1.5 ${showColumnPicker ? 'bg-blue-50 border-blue-300 text-blue-700' : 'hover:bg-gray-100'}`}>
             <Columns className="w-4 h-4" /> <span className="hidden sm:inline">Колонки</span>
           </button>
           <button onClick={() => { loadData(); showNotification('success', 'Данные обновлены'); }} className="px-2 md:px-3 py-2 border rounded-lg text-xs md:text-sm flex items-center gap-1 md:gap-1.5 hover:bg-gray-100">
@@ -631,6 +631,138 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
             </button>
           )}
         </div>
+
+        {/* Панель фильтров */}
+        {showFilters && (
+          <div className="border-t bg-white px-2 md:px-4 py-3 space-y-3">
+            <div className="flex flex-wrap gap-2 md:gap-3">
+              <select value={filterLeader} onChange={e => setFilterLeader(e.target.value)} className="px-2 md:px-3 py-1.5 border rounded-lg text-xs md:text-sm">
+                <option value="">Все руководители</option>
+                {leaders.map(l => <option key={l.id} value={l.id}>{l.fullName}</option>)}
+              </select>
+              <select value={filterDocStatus} onChange={e => setFilterDocStatus(e.target.value)} className="px-2 md:px-3 py-1.5 border rounded-lg text-xs md:text-sm">
+                <option value="">Все документы</option>
+                <option value="complete">Полный комплект</option>
+                <option value="incomplete">Неполный комплект</option>
+              </select>
+              <select value={filterPayStatus} onChange={e => setFilterPayStatus(e.target.value)} className="px-2 md:px-3 py-1.5 border rounded-lg text-xs md:text-sm">
+                <option value="">Все оплаты</option>
+                <option value="not_paid">Не оплачено</option>
+                <option value="partial">Частично</option>
+                <option value="paid">Оплачено</option>
+                <option value="overpaid">Переплата</option>
+              </select>
+              <select value={filterUploadStatus} onChange={e => setFilterUploadStatus(e.target.value)} className="px-2 md:px-3 py-1.5 border rounded-lg text-xs md:text-sm">
+                <option value="">Все статусы загрузки</option>
+                <option value="reserve">Резерв</option>
+                <option value="main">Основа</option>
+              </select>
+              <select value={filterPhoto} onChange={e => setFilterPhoto(e.target.value as any)} className="px-2 md:px-3 py-1.5 border rounded-lg text-xs md:text-sm">
+                <option value="all">Фото: все</option>
+                <option value="yes">Фото: есть</option>
+                <option value="no">Фото: нет</option>
+              </select>
+              <select value={filterPassport} onChange={e => setFilterPassport(e.target.value as any)} className="px-2 md:px-3 py-1.5 border rounded-lg text-xs md:text-sm">
+                <option value="all">Паспорт: все</option>
+                <option value="yes">Паспорт: есть</option>
+                <option value="no">Паспорт: нет</option>
+              </select>
+              <select value={filterRegistration} onChange={e => setFilterRegistration(e.target.value as any)} className="px-2 md:px-3 py-1.5 border rounded-lg text-xs md:text-sm">
+                <option value="all">Прописка: все</option>
+                <option value="yes">Прописка: есть</option>
+                <option value="no">Прописка: нет</option>
+              </select>
+              <select value={filterForeignPassport} onChange={e => setFilterForeignPassport(e.target.value as any)} className="px-2 md:px-3 py-1.5 border rounded-lg text-xs md:text-sm">
+                <option value="all">Загран: все</option>
+                <option value="yes">Загран: есть</option>
+                <option value="no">Загран: нет</option>
+              </select>
+            </div>
+            <div className="flex flex-wrap gap-2 md:gap-3 items-center">
+              <span className="text-xs font-semibold text-gray-600">Дата создания:</span>
+              <input
+                type="date"
+                value={filterDateFrom}
+                onChange={e => setFilterDateFrom(e.target.value)}
+                className="px-2 py-1.5 border rounded-lg text-xs md:text-sm"
+                placeholder="От"
+              />
+              <span className="text-xs text-gray-500">—</span>
+              <input
+                type="date"
+                value={filterDateTo}
+                onChange={e => setFilterDateTo(e.target.value)}
+                className="px-2 py-1.5 border rounded-lg text-xs md:text-sm"
+                placeholder="До"
+              />
+            </div>
+            <div className="flex flex-wrap gap-2 md:gap-3 items-center">
+              <span className="text-xs font-semibold text-gray-600">Срок паспорта:</span>
+              <input
+                type="date"
+                value={filterPassportExpiryFrom}
+                onChange={e => setFilterPassportExpiryFrom(e.target.value)}
+                className="px-2 py-1.5 border rounded-lg text-xs md:text-sm"
+                placeholder="От"
+              />
+              <span className="text-xs text-gray-500">—</span>
+              <input
+                type="date"
+                value={filterPassportExpiryTo}
+                onChange={e => setFilterPassportExpiryTo(e.target.value)}
+                className="px-2 py-1.5 border rounded-lg text-xs md:text-sm"
+                placeholder="До"
+              />
+            </div>
+            {(filterLeader || filterDocStatus || filterPayStatus || filterUploadStatus || filterPhoto !== 'all' || filterPassport !== 'all' || filterRegistration !== 'all' || filterForeignPassport !== 'all' || filterDateFrom || filterDateTo || filterPassportExpiryFrom || filterPassportExpiryTo) && (
+              <button 
+                onClick={() => { 
+                  setFilterLeader(''); 
+                  setFilterDocStatus(''); 
+                  setFilterPayStatus(''); 
+                  setFilterUploadStatus(''); 
+                  setFilterPhoto('all'); 
+                  setFilterPassport('all'); 
+                  setFilterRegistration('all'); 
+                  setFilterForeignPassport('all');
+                  setFilterDateFrom(''); 
+                  setFilterDateTo(''); 
+                  setFilterPassportExpiryFrom(''); 
+                  setFilterPassportExpiryTo('');
+                }} 
+                className="px-3 py-1.5 text-xs md:text-sm text-red-600 hover:bg-red-50 rounded-lg border border-red-200"
+              >
+                Сбросить все фильтры
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Панель выбора колонок */}
+        {showColumnPicker && (
+          <div className="border-t bg-white px-2 md:px-4 py-3">
+            <div className="flex flex-wrap gap-2 md:gap-3">
+              {COLUMN_DEFS.map((col: any) => (
+                <label key={col.key} className="flex items-center gap-1.5 text-xs md:text-sm cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
+                  <input
+                    type="checkbox"
+                    checked={settings.visibleColumns.includes(col.key)}
+                    onChange={e => {
+                      const newVisibleColumns = e.target.checked
+                        ? [...settings.visibleColumns, col.key]
+                        : settings.visibleColumns.filter((k: string) => k !== col.key);
+                      const newSettings = { ...settings, visibleColumns: newVisibleColumns };
+                      setSettings(newSettings);
+                      saveTableSettings(newSettings);
+                    }}
+                    className="rounded"
+                  />
+                  {col.label}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="px-4 py-2 bg-gray-50 border-b text-xs text-gray-500 flex items-center gap-4">
