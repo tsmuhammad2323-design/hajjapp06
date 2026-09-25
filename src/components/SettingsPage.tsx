@@ -4,7 +4,8 @@ import { CURRENCIES } from '../types';
 import { getSystemSettings, updateSystemSettings, exportBackup, importBackup, formatCurrency, getTheme, setTheme, isBackendMode, setBackendMode, checkBackendConnection, syncFromBackend } from '../api/dataProvider';
 import { formatPhone } from '../utils/phone';
 import TagsManager from './TagsManager';
-import { ArrowLeft, Save, Download, Upload, AlertCircle, CheckCircle, Settings as SettingsIcon, Globe, Building, Bell, Database, Plane, Calendar, FileText, Tag, Moon, Sun, Server, RefreshCw } from 'lucide-react';
+import CustomColumnsManager from './CustomColumnsManager';
+import { ArrowLeft, Save, Download, Upload, AlertCircle, CheckCircle, Settings as SettingsIcon, Globe, Building, Bell, Database, Plane, Calendar, FileText, Tag, Moon, Sun, Server, RefreshCw, Columns } from 'lucide-react';
 
 interface SettingsPageProps {
   user: User;
@@ -14,7 +15,7 @@ interface SettingsPageProps {
 export default function SettingsPage({ user, onBack }: SettingsPageProps) {
   const [settings, setSettings] = useState<SystemSettings>(getSystemSettings());
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [activeTab, setActiveTab] = useState<'general' | 'programs' | 'tags' | 'company' | 'backup' | 'connection'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'programs' | 'tags' | 'columns' | 'company' | 'backup' | 'connection'>('general');
   const [theme, setThemeState] = useState<'light' | 'dark'>(getTheme());
   const [backendEnabled, setBackendEnabled] = useState(isBackendMode());
   const [backendStatus, setBackendStatus] = useState<'checking' | 'connected' | 'disconnected'>('disconnected');
@@ -114,6 +115,7 @@ export default function SettingsPage({ user, onBack }: SettingsPageProps) {
             { key: 'general', label: 'Общие', icon: Globe },
             { key: 'programs', label: 'Программы', icon: Plane },
             { key: 'tags', label: 'Теги', icon: Tag },
+            { key: 'columns', label: 'Колонки', icon: Columns },
             { key: 'connection', label: 'Подключение', icon: Server },
             { key: 'company', label: 'Организация', icon: Building },
             { key: 'backup', label: 'Резервные копии', icon: Database },
@@ -240,6 +242,18 @@ export default function SettingsPage({ user, onBack }: SettingsPageProps) {
                 <Tag className="w-5 h-5 text-blue-500" /> Управление тегами
               </h3>
               <TagsManager onTagsChange={() => setSettings(getSystemSettings())} />
+            </div>
+          )}
+
+          {activeTab === 'columns' && (
+            <div className="bg-white rounded-xl border p-4 md:p-6">
+              <h3 className="font-semibold text-gray-700 mb-4 flex items-center gap-2">
+                <Columns className="w-5 h-5 text-blue-500" /> Управление колонками
+              </h3>
+              <p className="text-sm text-gray-500 mb-4">
+                Добавляйте пользовательские колонки для хранения дополнительной информации о паломниках.
+              </p>
+              <CustomColumnsManager onColumnsChange={() => setSettings(getSystemSettings())} />
             </div>
           )}
 

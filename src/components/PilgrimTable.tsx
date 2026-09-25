@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { Pilgrim, Leader, TableSettings, User } from '../types';
+import type { Pilgrim, Leader, TableSettings, User, CustomColumn } from '../types';
 import {
   getPilgrimsForUser, updatePilgrim, getLeaders,
   archivePilgrim, deletePilgrim, getTableSettings, setTableSettings as saveTableSettings,
@@ -21,27 +21,6 @@ interface PilgrimTableProps {
   onCreateNew: () => void;
   onRefresh: () => void;
 }
-
-const COLUMN_DEFS = [
-  { key: 'folderNumber', label: 'Папка', width: 80, sortable: true },
-  { key: 'fullName', label: 'ФИО', width: 280, sortable: true },
-  { key: 'phone', label: 'Телефон', width: 140, sortable: false },
-  { key: 'birthDate', label: 'Возраст', width: 100, sortable: true },
-  { key: 'passportExpiry', label: 'Срок паспорта', width: 130, sortable: true },
-  { key: 'leaderId', label: 'Руководитель', width: 160, sortable: true },
-  { key: 'programType', label: 'Программа', width: 120, sortable: true },
-  { key: 'tags', label: 'Теги', width: 180, sortable: false },
-  { key: 'totalAmount', label: 'Сумма', width: 120, sortable: true },
-  { key: 'hasPhoto', label: 'Фото', width: 70, sortable: false },
-  { key: 'hasPassport', label: 'Паспорт', width: 80, sortable: false },
-  { key: 'hasRegistration', label: 'Прописка', width: 85, sortable: false },
-  { key: 'hasForeignPassport', label: 'Загран', width: 75, sortable: false },
-  { key: 'documentStatus', label: 'Статус', width: 100, sortable: true },
-  { key: 'paymentStatus', label: 'Оплата', width: 100, sortable: true },
-  { key: 'uploadStatus', label: 'Загрузка', width: 100, sortable: true },
-  { key: 'comments', label: 'Комментарий', width: 200, sortable: false },
-  { key: 'createdAt', label: 'Создан', width: 110, sortable: true },
-];
 
 export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh }: PilgrimTableProps) {
   const [pilgrims, setPilgrims] = useState<Pilgrim[]>([]);
@@ -70,6 +49,7 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showArchive, setShowArchive] = useState(false);
   const [showImportDocs, setShowImportDocs] = useState(false);
+  const [importJsonData, setImportJsonData] = useState<string>('');
 
   useEffect(() => {
     loadData();
@@ -90,6 +70,42 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
     setNotification({ type, text });
     setTimeout(() => setNotification(null), 3000);
   };
+
+  // Генерация колонок с учётом пользовательских
+  const COLUMN_DEFS = useMemo(() => {
+    const baseColumns = [
+      { key: 'folderNumber', label: 'Папка', width: 80, sortable: true },
+      { key: 'fullName', label: 'ФИО', width: 280, sortable: true },
+      { key: 'phone', label: 'Телефон', width: 140, sortable: false },
+      { key: 'birthDate', label: 'Возраст', width: 100, sortable: true },
+      { key: 'passportExpiry', label: 'Срок паспорта', width: 130, sortable: true },
+      { key: 'leaderId', label: 'Руководитель', width: 160, sortable: true },
+      { key: 'programType', label: 'Программа', width: 120, sortable: true },
+      { key: 'tags', label: 'Теги', width: 180, sortable: false },
+      { key: 'totalAmount', label: 'Сумма', width: 120, sortable: true },
+      { key: 'hasPhoto', label: 'Фото', width: 70, sortable: false },
+      { key: 'hasPassport', label: 'Паспорт', width: 80, sortable: false },
+      { key: 'hasRegistration', label: 'Прописка', width: 85, sortable: false },
+      { key: 'hasForeignPassport', label: 'Загран', width: 75, sortable: false },
+      { key: 'documentStatus', label: 'Статус', width: 100, sortable: true },
+      { key: 'paymentStatus', label: 'Оплата', width: 100, sortable: true },
+      { key: 'uploadStatus', label: 'Загрузка', width: 100, sortable: true },
+      { key: 'comments', label: 'Комментарий', width: 200, sortable: false },
+      { key: 'createdAt', label: 'Создан', width: 110, sortable: true },
+    ];
+
+    // Добавляем пользовательские колонки
+    const customColumns = (settings.customColumns || []).map(col => ({
+      key: `custom_${col.id}`,
+      label: col.name,
+      width: col.width || 150,
+      sortable: false,
+      isCustom: true,
+      customColumn: col
+    }));
+
+    return [...baseColumns, ...customColumns];
+  }, [settings.customColumns]);
 
   const filteredPilgrims = useMemo(() => {
     let result = [...pilgrims];
@@ -136,6 +152,10 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
         if (settings.sortBy === 'fullName') {
           va = `${a.lastName} ${a.firstName} ${a.middleName}`.trim();
           vb = `${b.lastName} ${b.firstName} ${b.middleName}`.trim();
+        } else if (settings.sortBy.startsWith('custom_')) {
+          const colId = settings.sortBy.replace('custom_', '');
+          va = a.customData?.[colId] || '';
+          vb = b.customData?.[colId] || '';
         } else {
           va = (a as any)[settings.sortBy] || '';
           vb = (b as any)[settings.sortBy] || '';
@@ -176,7 +196,14 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
       const pilgrim = pilgrims.find(p => p.id === editingCell.pilgrimId);
       if (!pilgrim) return;
       let data: any = {};
-      if (editingCell.field === 'folderNumber' || editingCell.field === 'comments') {
+      
+      // Обработка пользовательских колонок
+      if (editingCell.field.startsWith('custom_')) {
+        const colId = editingCell.field.replace('custom_', '');
+        const customData = { ...(pilgrim.customData || {}) };
+        customData[colId] = editValue;
+        data.customData = customData;
+      } else if (editingCell.field === 'folderNumber' || editingCell.field === 'comments') {
         data[editingCell.field] = editValue;
       } else if (editingCell.field === 'phone') {
         data.phone = formatPhone(editValue);
@@ -187,6 +214,7 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
       } else if (editingCell.field === 'uploadStatus') {
         data.uploadStatus = editValue as any;
       }
+      
       updatePilgrim(editingCell.pilgrimId, data);
       loadData();
       showNotification('success', 'Изменения сохранены');
@@ -232,7 +260,143 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
     );
   };
 
-  const renderCell = (pilgrim: Pilgrim, colKey: string) => {
+  const renderCustomCell = (pilgrim: Pilgrim, column: CustomColumn) => {
+    const value = pilgrim.customData?.[column.id];
+    const isEditing = editingCell?.pilgrimId === pilgrim.id && editingCell?.field === `custom_${column.id}`;
+    const canEdit = user.role === 'admin' || user.role === 'employee';
+
+    if (isEditing) {
+      if (column.type === 'select' && column.options) {
+        return (
+          <select
+            value={editValue}
+            onChange={e => setEditValue(e.target.value)}
+            onBlur={saveCellEdit}
+            onKeyDown={e => e.key === 'Enter' && saveCellEdit()}
+            className="w-full px-1 py-0.5 text-sm border border-blue-400 rounded focus:outline-none"
+            autoFocus
+          >
+            <option value="">—</option>
+            {column.options.map(opt => (
+              <option key={opt.id} value={opt.label}>{opt.label}</option>
+            ))}
+          </select>
+        );
+      }
+      if (column.type === 'checkbox') {
+        return (
+          <input
+            type="checkbox"
+            checked={editValue === 'true'}
+            onChange={e => {
+              setEditValue(e.target.checked ? 'true' : 'false');
+              saveCellEdit();
+            }}
+            onBlur={saveCellEdit}
+            className="w-5 h-5 text-blue-600 rounded"
+            autoFocus
+          />
+        );
+      }
+      if (column.type === 'date') {
+        return (
+          <input
+            type="date"
+            value={editValue}
+            onChange={e => setEditValue(e.target.value)}
+            onBlur={saveCellEdit}
+            onKeyDown={e => e.key === 'Enter' && saveCellEdit()}
+            className="w-full px-1 py-0.5 text-sm border border-blue-400 rounded focus:outline-none"
+            autoFocus
+          />
+        );
+      }
+      if (column.type === 'number') {
+        return (
+          <input
+            type="number"
+            value={editValue}
+            onChange={e => setEditValue(e.target.value)}
+            onBlur={saveCellEdit}
+            onKeyDown={e => e.key === 'Enter' && saveCellEdit()}
+            className="w-full px-1 py-0.5 text-sm border border-blue-400 rounded focus:outline-none"
+            autoFocus
+          />
+        );
+      }
+      return (
+        <input
+          type={column.type === 'email' ? 'email' : column.type === 'url' ? 'url' : 'text'}
+          value={editValue}
+          onChange={e => setEditValue(e.target.value)}
+          onBlur={saveCellEdit}
+          onKeyDown={e => e.key === 'Enter' && saveCellEdit()}
+          className="w-full px-1 py-0.5 text-sm border border-blue-400 rounded focus:outline-none"
+          autoFocus
+        />
+      );
+    }
+
+    // Отображение значения
+    let displayValue: any = '—';
+    
+    if (value !== undefined && value !== null && value !== '') {
+      if (column.type === 'checkbox') {
+        displayValue = value ? '✓' : '✗';
+      } else if (column.type === 'date' && value) {
+        displayValue = new Date(value).toLocaleDateString('ru-RU');
+      } else if (column.type === 'url' && value) {
+        displayValue = (
+          <a href={value} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate block">
+            {value}
+          </a>
+        );
+      } else if (column.type === 'email' && value) {
+        displayValue = (
+          <a href={`mailto:${value}`} className="text-blue-600 hover:underline truncate block">
+            {value}
+          </a>
+        );
+      } else if (column.type === 'select' && column.options) {
+        const option = column.options.find(opt => opt.label === value);
+        if (option?.color) {
+          displayValue = (
+            <span
+              className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-white"
+              style={{ backgroundColor: option.color }}
+            >
+              {value}
+            </span>
+          );
+        } else {
+          displayValue = value;
+        }
+      } else {
+        displayValue = String(value);
+      }
+    }
+
+    return (
+      <div
+        className={`truncate text-sm ${canEdit ? 'cursor-pointer hover:bg-blue-50 rounded px-1 -mx-1' : ''}`}
+        onDoubleClick={() => {
+          if (canEdit) {
+            handleCellEdit(pilgrim.id, `custom_${column.id}`, String(value || ''));
+          }
+        }}
+        title={String(value || '')}
+      >
+        {displayValue}
+      </div>
+    );
+  };
+
+  const renderCell = (pilgrim: Pilgrim, colKey: string, colDef?: any) => {
+    // Обработка пользовательских колонок
+    if (colDef?.isCustom && colDef.customColumn) {
+      return renderCustomCell(pilgrim, colDef.customColumn);
+    }
+
     const isEditing = editingCell?.pilgrimId === pilgrim.id && editingCell?.field === colKey;
     const value = (pilgrim as any)[colKey];
     const canEdit = user.role === 'admin' || user.role === 'employee';
@@ -412,7 +576,7 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
     );
   };
 
-  const visibleCols = COLUMN_DEFS.filter(c => settings.visibleColumns.includes(c.key));
+  const visibleCols = COLUMN_DEFS.filter((c: any) => settings.visibleColumns.includes(c.key));
 
   return (
     <div className="h-full flex flex-col bg-white">
@@ -444,181 +608,13 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
           <button onClick={() => { loadData(); showNotification('success', 'Данные обновлены'); }} className="px-2 md:px-3 py-2 border rounded-lg text-xs md:text-sm flex items-center gap-1 md:gap-1.5 hover:bg-gray-100">
             <RefreshCw className="w-4 h-4" /> <span className="hidden sm:inline">Обновить</span>
           </button>
-          <button 
-            onClick={() => setShowImportDocs(true)} 
-            className="px-2 md:px-3 py-2 border rounded-lg text-xs md:text-sm flex items-center gap-1 md:gap-1.5 hover:bg-gray-100 text-purple-600 border-purple-200"
-            title="Импорт статусов документов"
-          >
-            <FolderSync className="w-4 h-4" /> <span className="hidden sm:inline">Импорт документов</span>
-          </button>
           <div className="flex-1" />
-          {selected.size > 0 && (
-            <div className="relative">
-              <button onClick={() => setShowBulkMenu(!showBulkMenu)} className="px-2 md:px-3 py-2 bg-blue-600 text-white rounded-lg text-xs md:text-sm flex items-center gap-1 md:gap-1.5 hover:bg-blue-700">
-                <MoreVertical className="w-4 h-4" /> <span className="hidden sm:inline">Действия ({selected.size})</span><span className="sm:hidden">{selected.size}</span>
-              </button>
-              {showBulkMenu && (
-                <div className="absolute right-0 top-full mt-1 bg-white border rounded-lg shadow-lg py-1 z-20 min-w-[180px]">
-                  <button 
-                    onClick={() => {
-                      const selectedPilgrims = pilgrims.filter(p => selected.has(p.id));
-                      exportPilgrimsListToPDF(selectedPilgrims);
-                      setShowBulkMenu(false);
-                    }} 
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
-                  >
-                    <FileDown className="w-4 h-4" /> Экспорт в PDF
-                  </button>
-                  <button onClick={() => {
-                    const ids = Array.from(selected);
-                    ids.forEach(id => archivePilgrim(id));
-                    showNotification('success', `Архивировано: ${ids.length}`);
-                    setSelected(new Set());
-                    setShowBulkMenu(false);
-                    loadData();
-                  }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2">
-                    <Archive className="w-4 h-4" /> Архивировать
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-          <button 
-            onClick={() => setShowArchive(!showArchive)} 
-            className={`px-2 md:px-3 py-2 border rounded-lg text-xs md:text-sm flex items-center gap-1 md:gap-1.5 ${showArchive ? 'bg-amber-50 border-amber-300 text-amber-700' : 'hover:bg-gray-100'}`}
-          >
-            <Archive className="w-4 h-4" /> <span className="hidden sm:inline">{showArchive ? 'Активные' : 'Архив'}</span>
-          </button>
           {!showArchive && (
             <button onClick={onCreateNew} className="px-3 md:px-4 py-2 bg-blue-600 text-white rounded-lg text-xs md:text-sm flex items-center gap-1 md:gap-1.5 hover:bg-blue-700 shadow-sm">
               <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Новый паломник</span><span className="sm:hidden">Новый</span>
             </button>
           )}
         </div>
-
-        {showFilters && (
-          <div className="flex flex-wrap gap-3 pt-2 border-t">
-            <select value={filterLeader} onChange={e => setFilterLeader(e.target.value)} className="px-3 py-1.5 border rounded-lg text-sm">
-              <option value="">Все руководители</option>
-              {leaders.map(l => <option key={l.id} value={l.id}>{l.fullName}</option>)}
-            </select>
-            <select value={filterDocStatus} onChange={e => setFilterDocStatus(e.target.value)} className="px-3 py-1.5 border rounded-lg text-sm">
-              <option value="">Все статусы документов</option>
-              <option value="complete">Полный</option>
-              <option value="incomplete">Неполный</option>
-            </select>
-            <select value={filterPayStatus} onChange={e => setFilterPayStatus(e.target.value)} className="px-3 py-1.5 border rounded-lg text-sm">
-              <option value="">Все статусы оплаты</option>
-              <option value="not_paid">Не оплачено</option>
-              <option value="partial">Частично</option>
-              <option value="paid">Оплачено</option>
-              <option value="overpaid">Переплата</option>
-            </select>
-            <select value={filterUploadStatus} onChange={e => setFilterUploadStatus(e.target.value)} className="px-3 py-1.5 border rounded-lg text-sm">
-              <option value="">Все статусы загрузки</option>
-              <option value="reserve">Резерв</option>
-              <option value="main">Основа</option>
-            </select>
-            {getAvailableTags().length > 0 && (
-              <select value={filterTag} onChange={e => setFilterTag(e.target.value)} className="px-3 py-1.5 border rounded-lg text-sm">
-                <option value="">Все теги</option>
-                {getAvailableTags().map(tag => (
-                  <option key={tag.id} value={tag.id}>{tag.name}</option>
-                ))}
-              </select>
-            )}
-            <select value={filterPhoto} onChange={e => setFilterPhoto(e.target.value as any)} className="px-3 py-1.5 border rounded-lg text-sm">
-              <option value="all">Фото: все</option>
-              <option value="yes">Фото: есть</option>
-              <option value="no">Фото: нет</option>
-            </select>
-            <select value={filterPassport} onChange={e => setFilterPassport(e.target.value as any)} className="px-3 py-1.5 border rounded-lg text-sm">
-              <option value="all">Паспорт: все</option>
-              <option value="yes">Паспорт: есть</option>
-              <option value="no">Паспорт: нет</option>
-            </select>
-            <select value={filterRegistration} onChange={e => setFilterRegistration(e.target.value as any)} className="px-3 py-1.5 border rounded-lg text-sm">
-              <option value="all">Прописка: все</option>
-              <option value="yes">Прописка: есть</option>
-              <option value="no">Прописка: нет</option>
-            </select>
-            <select value={filterForeignPassport} onChange={e => setFilterForeignPassport(e.target.value as any)} className="px-3 py-1.5 border rounded-lg text-sm">
-              <option value="all">Загран: все</option>
-              <option value="yes">Загран: есть</option>
-              <option value="no">Загран: нет</option>
-            </select>
-            
-            <div className="w-full border-t pt-2 mt-2">
-              <div className="flex flex-wrap gap-3 items-center">
-                <span className="text-xs font-semibold text-gray-600">Дата создания:</span>
-                <input
-                  type="date"
-                  value={filterDateFrom}
-                  onChange={e => setFilterDateFrom(e.target.value)}
-                  className="px-2 py-1.5 border rounded-lg text-sm"
-                />
-                <span className="text-xs text-gray-500">—</span>
-                <input
-                  type="date"
-                  value={filterDateTo}
-                  onChange={e => setFilterDateTo(e.target.value)}
-                  className="px-2 py-1.5 border rounded-lg text-sm"
-                />
-              </div>
-            </div>
-            
-            <div className="w-full">
-              <div className="flex flex-wrap gap-3 items-center">
-                <span className="text-xs font-semibold text-gray-600">Срок паспорта:</span>
-                <input
-                  type="date"
-                  value={filterPassportExpiryFrom}
-                  onChange={e => setFilterPassportExpiryFrom(e.target.value)}
-                  className="px-2 py-1.5 border rounded-lg text-sm"
-                />
-                <span className="text-xs text-gray-500">—</span>
-                <input
-                  type="date"
-                  value={filterPassportExpiryTo}
-                  onChange={e => setFilterPassportExpiryTo(e.target.value)}
-                  className="px-2 py-1.5 border rounded-lg text-sm"
-                />
-              </div>
-            </div>
-            
-            {(filterLeader || filterDocStatus || filterPayStatus || filterUploadStatus || filterTag || filterPhoto !== 'all' || filterPassport !== 'all' || filterRegistration !== 'all' || filterForeignPassport !== 'all' || filterDateFrom || filterDateTo || filterPassportExpiryFrom || filterPassportExpiryTo) && (
-              <button onClick={() => { 
-                setFilterLeader(''); setFilterDocStatus(''); setFilterPayStatus(''); setFilterUploadStatus(''); setFilterTag(''); 
-                setFilterPhoto('all'); setFilterPassport('all'); setFilterRegistration('all'); setFilterForeignPassport('all');
-                setFilterDateFrom(''); setFilterDateTo(''); setFilterPassportExpiryFrom(''); setFilterPassportExpiryTo('');
-              }} className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg">
-                Сбросить все фильтры
-              </button>
-            )}
-          </div>
-        )}
-
-        {showColumnPicker && (
-          <div className="flex flex-wrap gap-2 pt-2 border-t">
-            {COLUMN_DEFS.map(col => (
-              <label key={col.key} className="flex items-center gap-1.5 text-sm cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.visibleColumns.includes(col.key)}
-                  onChange={e => {
-                    const newSettings = { ...settings };
-                    if (e.target.checked) newSettings.visibleColumns.push(col.key);
-                    else newSettings.visibleColumns = newSettings.visibleColumns.filter(c => c !== col.key);
-                    setSettings(newSettings);
-                    saveTableSettings(newSettings);
-                  }}
-                  className="rounded"
-                />
-                {col.label}
-              </label>
-            ))}
-          </div>
-        )}
       </div>
 
       <div className="px-4 py-2 bg-gray-50 border-b text-xs text-gray-500 flex items-center gap-4">
@@ -635,7 +631,7 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
               <th className="w-10 px-2 py-2 border-b border-r sticky left-0 bg-gray-100 z-20">
                 <input type="checkbox" checked={selected.size === filteredPilgrims.length && filteredPilgrims.length > 0} onChange={toggleSelectAll} className="rounded" />
               </th>
-              {visibleCols.map(col => (
+              {visibleCols.map((col: any) => (
                 <th
                   key={col.key}
                   className="px-3 py-2 border-b border-r text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-200 select-none whitespace-nowrap"
@@ -658,9 +654,9 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
                 <td className="px-2 py-1.5 border-r text-center sticky left-0 bg-inherit z-10">
                   <input type="checkbox" checked={selected.has(pilgrim.id)} onChange={() => toggleSelect(pilgrim.id)} className="rounded" />
                 </td>
-                {visibleCols.map(col => (
+                {visibleCols.map((col: any) => (
                   <td key={col.key} className="px-3 py-1.5 border-r" style={{ width: col.width, minWidth: col.width }}>
-                    {renderCell(pilgrim, col.key)}
+                    {renderCell(pilgrim, col.key, col)}
                   </td>
                 ))}
               </tr>

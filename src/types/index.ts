@@ -186,6 +186,7 @@ export interface Pilgrim {
   paymentStatus: PaymentStatus;
   uploadStatus: UploadStatus;
   isArchived: boolean;
+  customData?: Record<string, any>; // Данные пользовательских колонок
   createdAt: string;
   updatedAt: string;
   version: number;
@@ -253,6 +254,27 @@ export interface TableSettings {
   pinnedColumns: string[];
   sortBy: string;
   sortOrder: 'asc' | 'desc';
+  customColumns?: CustomColumn[];
+}
+
+// ====== CUSTOM COLUMNS ======
+export type CustomColumnType = 'text' | 'number' | 'date' | 'select' | 'checkbox' | 'url' | 'email';
+
+export interface CustomColumnOption {
+  id: string;
+  label: string;
+  color?: string;
+}
+
+export interface CustomColumn {
+  id: string;
+  name: string;
+  type: CustomColumnType;
+  options?: CustomColumnOption[]; // Для select
+  required?: boolean;
+  defaultValue?: any;
+  width?: number;
+  createdAt: string;
 }
 
 // ====== SESSION ======
