@@ -250,7 +250,9 @@ export interface TelegramNotification {
 // ====== TABLE SETTINGS ======
 export interface TableSettings {
   visibleColumns: string[];
+  columnOrder: string[]; // Порядок всех колонок
   columnWidths: Record<string, number>;
+  columnLabels: Record<string, string>; // Кастомные названия колонок
   pinnedColumns: string[];
   sortBy: string;
   sortOrder: 'asc' | 'desc';

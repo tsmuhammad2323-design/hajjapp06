@@ -308,13 +308,36 @@ export function getTelegramNotifications(): TelegramNotification[] {
 // ====== TABLE SETTINGS ======
 export function getTableSettings(): TableSettings {
   const saved = getOne<TableSettings>('table_settings');
+  
+  // Базовый порядок колонок по умолчанию
+  const defaultColumnOrder = [
+    'folderNumber', 'fullName', 'phone', 'birthDate', 'passportExpiry',
+    'leaderId', 'programType', 'tags', 'totalAmount',
+    'hasPhoto', 'hasPassport', 'hasRegistration', 'hasForeignPassport',
+    'documentStatus', 'paymentStatus', 'uploadStatus',
+    'comments', 'createdAt'
+  ];
+  
   const defaults: TableSettings = {
     visibleColumns: ['folderNumber', 'fullName', 'phone', 'leaderId', 'documentStatus', 'paymentStatus', 'uploadStatus'],
-    columnWidths: {}, pinnedColumns: ['fullName'],
+    columnOrder: defaultColumnOrder,
+    columnWidths: {},
+    columnLabels: {},
+    pinnedColumns: ['fullName'],
     sortBy: 'createdAt', sortOrder: 'desc'
   };
+  
   if (!saved) return defaults;
-  return saved;
+  
+  // Миграция: добавляем новые поля если их нет
+  return {
+    ...defaults,
+    ...saved,
+    columnOrder: saved.columnOrder || defaultColumnOrder,
+    columnLabels: saved.columnLabels || {},
+    columnWidths: saved.columnWidths || {},
+    pinnedColumns: saved.pinnedColumns || ['fullName']
+  };
 }
 
 export function setTableSettings(settings: TableSettings) {

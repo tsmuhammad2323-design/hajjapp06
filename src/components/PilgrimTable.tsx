@@ -71,41 +71,72 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
     setTimeout(() => setNotification(null), 3000);
   };
 
-  // Генерация колонок с учётом пользовательских
+  // Генерация колонок с учётом порядка из настроек
   const COLUMN_DEFS = useMemo(() => {
-    const baseColumns = [
-      { key: 'folderNumber', label: 'Папка', width: 80, sortable: true },
-      { key: 'fullName', label: 'ФИО', width: 280, sortable: true },
-      { key: 'phone', label: 'Телефон', width: 140, sortable: false },
-      { key: 'birthDate', label: 'Возраст', width: 100, sortable: true },
-      { key: 'passportExpiry', label: 'Срок паспорта', width: 130, sortable: true },
-      { key: 'leaderId', label: 'Руководитель', width: 160, sortable: true },
-      { key: 'programType', label: 'Программа', width: 120, sortable: true },
-      { key: 'tags', label: 'Теги', width: 180, sortable: false },
-      { key: 'totalAmount', label: 'Сумма', width: 120, sortable: true },
-      { key: 'hasPhoto', label: 'Фото', width: 70, sortable: false },
-      { key: 'hasPassport', label: 'Паспорт', width: 80, sortable: false },
-      { key: 'hasRegistration', label: 'Прописка', width: 85, sortable: false },
-      { key: 'hasForeignPassport', label: 'Загран', width: 75, sortable: false },
-      { key: 'documentStatus', label: 'Статус', width: 100, sortable: true },
-      { key: 'paymentStatus', label: 'Оплата', width: 100, sortable: true },
-      { key: 'uploadStatus', label: 'Загрузка', width: 100, sortable: true },
-      { key: 'comments', label: 'Комментарий', width: 200, sortable: false },
-      { key: 'createdAt', label: 'Создан', width: 110, sortable: true },
-    ];
+    const baseColumnsMap: Record<string, any> = {
+      folderNumber: { key: 'folderNumber', label: 'Папка', width: 80, sortable: true },
+      fullName: { key: 'fullName', label: 'ФИО', width: 280, sortable: true },
+      phone: { key: 'phone', label: 'Телефон', width: 140, sortable: false },
+      birthDate: { key: 'birthDate', label: 'Возраст', width: 100, sortable: true },
+      passportExpiry: { key: 'passportExpiry', label: 'Срок паспорта', width: 130, sortable: true },
+      leaderId: { key: 'leaderId', label: 'Руководитель', width: 160, sortable: true },
+      programType: { key: 'programType', label: 'Программа', width: 120, sortable: true },
+      tags: { key: 'tags', label: 'Теги', width: 180, sortable: false },
+      totalAmount: { key: 'totalAmount', label: 'Сумма', width: 120, sortable: true },
+      hasPhoto: { key: 'hasPhoto', label: 'Фото', width: 70, sortable: false },
+      hasPassport: { key: 'hasPassport', label: 'Паспорт', width: 80, sortable: false },
+      hasRegistration: { key: 'hasRegistration', label: 'Прописка', width: 85, sortable: false },
+      hasForeignPassport: { key: 'hasForeignPassport', label: 'Загран', width: 75, sortable: false },
+      documentStatus: { key: 'documentStatus', label: 'Статус', width: 100, sortable: true },
+      paymentStatus: { key: 'paymentStatus', label: 'Оплата', width: 100, sortable: true },
+      uploadStatus: { key: 'uploadStatus', label: 'Загрузка', width: 100, sortable: true },
+      comments: { key: 'comments', label: 'Комментарий', width: 200, sortable: false },
+      createdAt: { key: 'createdAt', label: 'Создан', width: 110, sortable: true },
+    };
 
-    // Добавляем пользовательские колонки
-    const customColumns = (settings.customColumns || []).map(col => ({
-      key: `custom_${col.id}`,
-      label: col.name,
-      width: col.width || 150,
-      sortable: false,
-      isCustom: true,
-      customColumn: col
-    }));
+    // Пользовательские колонки
+    const customColumnsMap: Record<string, any> = {};
+    (settings.customColumns || []).forEach(col => {
+      customColumnsMap[`custom_${col.id}`] = {
+        key: `custom_${col.id}`,
+        label: col.name,
+        width: col.width || 150,
+        sortable: false,
+        isCustom: true,
+        customColumn: col
+      };
+    });
 
-    return [...baseColumns, ...customColumns];
-  }, [settings.customColumns]);
+    const allColumnsMap = { ...baseColumnsMap, ...customColumnsMap };
+
+    // Порядок из настроек
+    const columnOrder = settings.columnOrder || Object.keys(baseColumnsMap);
+    
+    // Строим список в нужном порядке
+    const result: any[] = [];
+    columnOrder.forEach(key => {
+      const col = allColumnsMap[key];
+      if (col) {
+        // Применяем кастомное название если есть
+        const customLabel = settings.columnLabels?.[key];
+        const customWidth = settings.columnWidths?.[key];
+        result.push({
+          ...col,
+          label: customLabel || col.label,
+          width: customWidth || col.width
+        });
+      }
+    });
+
+    // Добавляем колонки которых нет в порядке (новые)
+    Object.keys(allColumnsMap).forEach(key => {
+      if (!columnOrder.includes(key)) {
+        result.push(allColumnsMap[key]);
+      }
+    });
+
+    return result;
+  }, [settings.customColumns, settings.columnOrder, settings.columnLabels, settings.columnWidths]);
 
   const filteredPilgrims = useMemo(() => {
     let result = [...pilgrims];
@@ -576,22 +607,30 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
     );
   };
 
-  // Автоматически добавляем новые пользовательские колонки в visibleColumns
+  // Автоматически добавляем новые колонки в visibleColumns и columnOrder
   useEffect(() => {
     const customColumns = settings.customColumns || [];
     const customKeys = customColumns.map(c => `custom_${c.id}`);
-    const missingKeys = customKeys.filter(key => !settings.visibleColumns.includes(key));
     
-    if (missingKeys.length > 0) {
+    // Добавляем в visibleColumns если их там нет
+    const missingVisible = customKeys.filter(key => !settings.visibleColumns.includes(key));
+    
+    // Добавляем в columnOrder если их там нет
+    const columnOrder = settings.columnOrder || [];
+    const missingOrder = customKeys.filter(key => !columnOrder.includes(key));
+    
+    if (missingVisible.length > 0 || missingOrder.length > 0) {
       const newSettings = {
         ...settings,
-        visibleColumns: [...settings.visibleColumns, ...missingKeys]
+        visibleColumns: [...settings.visibleColumns, ...missingVisible],
+        columnOrder: [...columnOrder, ...missingOrder]
       };
       setSettings(newSettings);
       saveTableSettings(newSettings);
     }
   }, [settings.customColumns]);
 
+  // Видимые колонки в порядке из COLUMN_DEFS
   const visibleCols = COLUMN_DEFS.filter((c: any) => settings.visibleColumns.includes(c.key));
 
   return (
@@ -741,6 +780,9 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
         {/* Панель выбора колонок */}
         {showColumnPicker && (
           <div className="border-t bg-white px-2 md:px-4 py-3">
+            <div className="mb-2 text-xs text-gray-500">
+              💡 Управляйте порядком и настройками колонок в <strong>Настройки → Колонки</strong>
+            </div>
             <div className="flex flex-wrap gap-2 md:gap-3">
               {COLUMN_DEFS.map((col: any) => (
                 <label key={col.key} className="flex items-center gap-1.5 text-xs md:text-sm cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
@@ -758,6 +800,7 @@ export default function PilgrimTable({ user, onOpenCard, onCreateNew, onRefresh 
                     className="rounded"
                   />
                   {col.label}
+                  {col.isCustom && <span className="text-xs text-blue-500">•</span>}
                 </label>
               ))}
             </div>
