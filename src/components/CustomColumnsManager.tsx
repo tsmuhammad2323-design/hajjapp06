@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import type { CustomColumn, CustomColumnType, TableSettings } from '../types';
 import { getTableSettings, setTableSettings } from '../store/database';
-import { Plus, Trash2, Edit3, ArrowUp, ArrowDown, Copy, X, Check, GripVertical, Eye, EyeOff } from 'lucide-react';
+import { Plus, Trash2, Edit3, ArrowUp, ArrowDown, Copy, X, Check, GripVertical, Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react';
+import { useNotification } from './NotificationProvider';
 
 interface CustomColumnsManagerProps {
   onColumnsChange: () => void;
@@ -39,6 +40,7 @@ interface ColumnItem {
 }
 
 export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsManagerProps) {
+  const { success, error: showError } = useNotification();
   const [settings, setSettings] = useState<TableSettings>(getTableSettings());
   const [showAddForm, setShowAddForm] = useState(false);
   const [newColumn, setNewColumn] = useState<Partial<CustomColumn>>({
@@ -47,7 +49,6 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
     options: []
   });
   const [editingColumn, setEditingColumn] = useState<ColumnItem | null>(null);
-  const [draggedColumnKey, setDraggedColumnKey] = useState<string | null>(null);
 
   // Объединяем все колонки в один список
   const getAllColumns = (): ColumnItem[] => {
@@ -60,7 +61,6 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
       options: col.options
     }));
 
-    // Базовые колонки с учётом кастомных названий и ширин
     const baseColumns = BASE_COLUMNS.map(col => ({
       key: col.key,
       label: settings.columnLabels?.[col.key] || col.label,
@@ -69,13 +69,11 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
       width: settings.columnWidths?.[col.key] || 150
     }));
 
-    // Объединяем в порядке из columnOrder
     const allColumnsMap = new Map<string, ColumnItem>();
     [...baseColumns, ...customColumns].forEach(col => {
       allColumnsMap.set(col.key, col);
     });
 
-    // Порядок из настроек + новые колонки в конце
     const orderedKeys = settings.columnOrder || [];
     const result: ColumnItem[] = [];
     
@@ -84,7 +82,6 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
       if (col) result.push(col);
     });
 
-    // Добавляем колонки которых нет в порядке
     allColumnsMap.forEach((col, key) => {
       if (!orderedKeys.includes(key)) {
         result.push(col);
@@ -104,7 +101,10 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
 
   // ====== ДОБАВЛЕНИЕ КОЛОНКИ ======
   const handleAddColumn = () => {
-    if (!newColumn.name?.trim()) return;
+    if (!newColumn.name?.trim()) {
+      showError('Введите название колонки');
+      return;
+    }
 
     const column: CustomColumn = {
       id: 'custom_' + Date.now(),
@@ -128,17 +128,22 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
     saveSettings(updatedSettings);
     setNewColumn({ name: '', type: 'text', options: [] });
     setShowAddForm(false);
+    success(`Колонка "${column.name}" создана`);
   };
 
   // ====== УДАЛЕНИЕ КОЛОНКИ ======
   const handleDeleteColumn = (key: string) => {
     const column = allColumns.find(c => c.key === key);
-    if (!column || column.system) {
-      alert('Системные колонки нельзя удалять');
+    if (!column) return;
+
+    if (column.system) {
+      showError('Системные колонки нельзя удалять. Можно только скрыть.');
       return;
     }
 
-    if (!confirm(`Удалить колонку "${column.label}"? Данные будут потеряны.`)) return;
+    if (!confirm(`Вы уверены что хотите удалить колонку "${column.label}"?\n\nВсе данные в этой колонке будут потеряны безвозвратно.`)) {
+      return;
+    }
 
     const customId = key.replace('custom_', '');
     const updatedSettings = {
@@ -149,6 +154,7 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
     };
 
     saveSettings(updatedSettings);
+    success(`Колонка "${column.label}" удалена`);
   };
 
   // ====== ПЕРЕМЕЩЕНИЕ КОЛОНКИ ======
@@ -164,6 +170,7 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
     [newOrder[index], newOrder[newIndex]] = [newOrder[newIndex], newOrder[index]];
 
     saveSettings({ ...settings, columnOrder: newOrder });
+    success('Порядок колонок изменён');
   };
 
   // ====== РЕДАКТИРОВАНИЕ КОЛОНКИ ======
@@ -171,11 +178,9 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
     if (!editingColumn) return;
 
     if (editingColumn.system) {
-      // Редактируем системную колонку
       const newLabels = { ...settings.columnLabels };
       const newWidths = { ...settings.columnWidths };
       
-      // Находим оригинальное название
       const baseCol = BASE_COLUMNS.find(c => c.key === editingColumn.key);
       if (baseCol && editingColumn.label !== baseCol.label) {
         newLabels[editingColumn.key] = editingColumn.label;
@@ -190,8 +195,8 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
         columnLabels: newLabels,
         columnWidths: newWidths
       });
+      success(`Колонка "${editingColumn.label}" обновлена`);
     } else {
-      // Редактируем пользовательскую колонку
       const customId = editingColumn.key.replace('custom_', '');
       const updatedCustomColumns = (settings.customColumns || []).map(c => {
         if (c.id === customId) {
@@ -207,6 +212,7 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
       });
 
       saveSettings({ ...settings, customColumns: updatedCustomColumns });
+      success(`Колонка "${editingColumn.label}" обновлена`);
     }
 
     setEditingColumn(null);
@@ -215,7 +221,7 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
   // ====== ДУБЛИРОВАНИЕ КОЛОНКИ ======
   const handleDuplicateColumn = (column: ColumnItem) => {
     if (column.system) {
-      alert('Системные колонки нельзя дублировать. Создайте новую пользовательскую колонку.');
+      showError('Системные колонки нельзя дублировать. Создайте новую пользовательскую колонку.');
       return;
     }
 
@@ -240,35 +246,7 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
       visibleColumns: [...(settings.visibleColumns || []), columnKey],
       columnOrder: newOrder
     });
-  };
-
-  // ====== DRAG & DROP ======
-  const handleDragStart = (key: string) => {
-    setDraggedColumnKey(key);
-  };
-
-  const handleDragOver = (e: React.DragEvent, targetKey: string) => {
-    e.preventDefault();
-    if (!draggedColumnKey || draggedColumnKey === targetKey) return;
-
-    const order = [...(settings.columnOrder || [])];
-    const draggedIndex = order.indexOf(draggedColumnKey);
-    const targetIndex = order.indexOf(targetKey);
-
-    if (draggedIndex === -1 || targetIndex === -1) return;
-
-    const [dragged] = order.splice(draggedIndex, 1);
-    order.splice(targetIndex, 0, dragged);
-
-    setSettings({ ...settings, columnOrder: order });
-    setDraggedColumnKey(targetKey);
-  };
-
-  const handleDragEnd = () => {
-    if (draggedColumnKey) {
-      saveSettings({ ...settings });
-    }
-    setDraggedColumnKey(null);
+    success(`Колонка "${column.label}" дублирована`);
   };
 
   // ====== ВИДИМОСТЬ ======
@@ -279,6 +257,8 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
       : [...settings.visibleColumns, key];
 
     saveSettings({ ...settings, visibleColumns: newVisible });
+    const column = allColumns.find(c => c.key === key);
+    success(`Колонка "${column?.label}" ${isVisible ? 'скрыта' : 'показана'}`);
   };
 
   const columnTypeLabels: Record<CustomColumnType, { label: string; icon: string }> = {
@@ -292,57 +272,81 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
   };
 
   return (
-    <div className="space-y-4">
-      {/* Заголовок */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="font-semibold text-gray-700 flex items-center gap-2">
-            <Edit3 className="w-5 h-5 text-blue-500" />
-            Управление колонками
-          </h3>
-          <p className="text-xs text-gray-500 mt-1">
-            Перетаскивайте колонки для изменения порядка • Все колонки можно редактировать
-          </p>
+    <div className="space-y-6">
+      {/* Заголовок с инструкцией */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+          <div className="text-sm text-blue-900">
+            <p className="font-semibold mb-1">Как управлять колонками:</p>
+            <ul className="space-y-1 text-xs">
+              <li>• <strong>Редактировать</strong> (✏️) - изменить название, ширину, тип</li>
+              <li>• <strong>Удалить</strong> (🗑️) - удалить пользовательскую колонку</li>
+              <li>• <strong>Переместить</strong> (↑↓) - изменить порядок колонок</li>
+              <li>• <strong>Скрыть/Показать</strong> (👁) - управление видимостью в таблице</li>
+              <li>• <strong>Дублировать</strong> (📋) - создать копию колонки</li>
+            </ul>
+          </div>
         </div>
+      </div>
+
+      {/* Кнопка добавления */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-gray-800">
+          Управление колонками ({allColumns.length})
+        </h3>
         <button
           onClick={() => setShowAddForm(true)}
-          className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm flex items-center gap-1.5 hover:bg-blue-700"
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 flex items-center gap-2 shadow-sm"
         >
-          <Plus className="w-4 h-4" /> Новая колонка
+          <Plus className="w-5 h-5" /> Добавить колонку
         </button>
       </div>
 
       {/* Форма добавления */}
       {showAddForm && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-          <h4 className="font-medium text-blue-900">Новая пользовательская колонка</h4>
+        <div className="bg-white border-2 border-blue-500 rounded-lg p-5 space-y-4 shadow-lg">
+          <div className="flex items-center justify-between">
+            <h4 className="font-semibold text-blue-900 text-lg">Создать новую колонку</h4>
+            <button
+              onClick={() => {
+                setShowAddForm(false);
+                setNewColumn({ name: '', type: 'text', options: [] });
+              }}
+              className="p-1 hover:bg-gray-100 rounded"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
           
           <div>
-            <label className="block text-sm text-gray-600 mb-1">Название</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Название колонки <span className="text-red-500">*</span>
+            </label>
             <input
               type="text"
               value={newColumn.name || ''}
               onChange={e => setNewColumn({ ...newColumn, name: e.target.value })}
-              placeholder="Например: Номер визы"
-              className="w-full px-3 py-2 border rounded-lg text-sm"
+              placeholder="Например: Номер визы, Дата оплаты, Статус"
+              className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:outline-none"
               autoFocus
             />
           </div>
 
           <div>
-            <label className="block text-sm text-gray-600 mb-1">Тип данных</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Тип данных</label>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {Object.entries(columnTypeLabels).map(([type, info]) => (
                 <button
                   key={type}
                   onClick={() => setNewColumn({ ...newColumn, type: type as CustomColumnType })}
-                  className={`p-2 border rounded-lg text-sm flex items-center gap-2 transition ${
+                  className={`p-3 border-2 rounded-lg text-sm flex items-center gap-2 transition ${
                     newColumn.type === type
-                      ? 'border-blue-500 bg-blue-100'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium'
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
-                  <span>{info.icon}</span>
+                  <span className="text-xl">{info.icon}</span>
                   <span>{info.label}</span>
                 </button>
               ))}
@@ -351,7 +355,9 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
 
           {newColumn.type === 'select' && (
             <div>
-              <label className="block text-sm text-gray-600 mb-1">Варианты выбора</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Варианты выбора <span className="text-xs text-gray-500">(для типа "Выбор")</span>
+              </label>
               <div className="space-y-2">
                 {(newColumn.options || []).map((option, idx) => (
                   <div key={idx} className="flex gap-2">
@@ -364,7 +370,7 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
                         setNewColumn({ ...newColumn, options });
                       }}
                       placeholder="Вариант"
-                      className="flex-1 px-3 py-1.5 border rounded-lg text-sm"
+                      className="flex-1 px-3 py-2 border-2 border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:outline-none"
                     />
                     <input
                       type="color"
@@ -374,14 +380,14 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
                         options[idx] = { ...options[idx], color: e.target.value };
                         setNewColumn({ ...newColumn, options });
                       }}
-                      className="w-10 h-9 rounded cursor-pointer"
+                      className="w-12 h-10 rounded cursor-pointer border-2 border-gray-300"
                     />
                     <button
                       onClick={() => {
                         const options = (newColumn.options || []).filter((_, i) => i !== idx);
                         setNewColumn({ ...newColumn, options });
                       }}
-                      className="p-1.5 text-red-500 hover:bg-red-50 rounded"
+                      className="px-3 py-2 text-red-500 hover:bg-red-50 rounded-lg border-2 border-red-200"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -392,27 +398,27 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
                     const options = [...(newColumn.options || []), { id: Date.now().toString(), label: '', color: '#3B82F6' }];
                     setNewColumn({ ...newColumn, options });
                   }}
-                  className="text-sm text-blue-600 hover:text-blue-700"
+                  className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
                 >
-                  + Добавить вариант
+                  <Plus className="w-4 h-4" /> Добавить вариант
                 </button>
               </div>
             </div>
           )}
 
-          <div className="flex gap-2">
+          <div className="flex gap-3 pt-2">
             <button
               onClick={handleAddColumn}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+              className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 flex items-center justify-center gap-2"
             >
-              Создать
+              <Check className="w-5 h-5" /> Создать колонку
             </button>
             <button
               onClick={() => {
                 setShowAddForm(false);
                 setNewColumn({ name: '', type: 'text', options: [] });
               }}
-              className="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50"
+              className="px-6 py-2.5 border-2 border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50"
             >
               Отмена
             </button>
@@ -421,16 +427,7 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
       )}
 
       {/* Список всех колонок */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between px-2">
-          <h4 className="font-medium text-sm text-gray-700">
-            Все колонки ({allColumns.length})
-          </h4>
-          <span className="text-xs text-gray-500">
-            Видимых: {settings.visibleColumns?.length || 0}
-          </span>
-        </div>
-
+      <div className="space-y-3">
         {allColumns.map((column, index) => {
           const isVisible = settings.visibleColumns.includes(column.key);
           const typeInfo = columnTypeLabels[column.type];
@@ -438,97 +435,110 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
           return (
             <div
               key={column.key}
-              draggable
-              onDragStart={() => handleDragStart(column.key)}
-              onDragOver={(e) => handleDragOver(e, column.key)}
-              onDragEnd={handleDragEnd}
-              className={`bg-white border rounded-lg p-3 flex items-center gap-3 transition ${
-                draggedColumnKey === column.key ? 'opacity-50 scale-95' : ''
-              } ${!isVisible ? 'opacity-60' : ''}`}
+              className={`bg-white border-2 rounded-lg p-4 transition ${
+                !isVisible ? 'opacity-60 border-gray-200' : 'border-gray-300 hover:border-blue-300'
+              }`}
             >
-              {/* Drag handle */}
-              <GripVertical className="w-4 h-4 text-gray-400 cursor-move flex-shrink-0" />
+              <div className="flex items-center gap-4">
+                {/* Drag handle */}
+                <GripVertical className="w-5 h-5 text-gray-400 cursor-move flex-shrink-0" />
 
-              {/* Номер */}
-              <span className="text-xs text-gray-400 w-6 flex-shrink-0">#{index + 1}</span>
+                {/* Номер */}
+                <span className="text-sm font-medium text-gray-400 w-8">#{index + 1}</span>
 
-              {/* Информация о колонке */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-sm truncate">{column.label}</span>
-                  {column.system && (
-                    <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
-                      системная
+                {/* Информация о колонке */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-semibold text-gray-900">{column.label}</span>
+                    {column.system && (
+                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium">
+                        системная
+                      </span>
+                    )}
+                    {!isVisible && (
+                      <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium">
+                        скрыта
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-gray-500 flex items-center gap-3">
+                    <span className="flex items-center gap-1">
+                      <span className="text-base">{typeInfo.icon}</span>
+                      <span>{typeInfo.label}</span>
                     </span>
-                  )}
+                    <span>•</span>
+                    <span>Ширина: {column.width}px</span>
+                    {column.type === 'select' && column.options && (
+                      <>
+                        <span>•</span>
+                        <span>{column.options.length} вариантов</span>
+                      </>
+                    )}
+                  </div>
                 </div>
-                <div className="text-xs text-gray-500 flex items-center gap-2">
-                  <span>{typeInfo.icon} {typeInfo.label}</span>
-                  <span>•</span>
-                  <span>{column.width}px</span>
-                  {column.type === 'select' && column.options && (
+
+                {/* Кнопки управления */}
+                <div className="flex items-center gap-1">
+                  {/* Видимость */}
+                  <button
+                    onClick={() => toggleVisibility(column.key)}
+                    className={`p-2 rounded-lg transition ${
+                      isVisible 
+                        ? 'text-blue-600 hover:bg-blue-50' 
+                        : 'text-gray-400 hover:bg-gray-100'
+                    }`}
+                    title={isVisible ? 'Скрыть колонку' : 'Показать колонку'}
+                  >
+                    {isVisible ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
+                  </button>
+
+                  {/* Перемещение */}
+                  <button
+                    onClick={() => handleMoveColumn(column.key, 'up')}
+                    disabled={index === 0}
+                    className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="Переместить вверх"
+                  >
+                    <ArrowUp className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => handleMoveColumn(column.key, 'down')}
+                    disabled={index === allColumns.length - 1}
+                    className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="Переместить вниз"
+                  >
+                    <ArrowDown className="w-5 h-5" />
+                  </button>
+
+                  {/* Редактирование */}
+                  <button
+                    onClick={() => setEditingColumn(column)}
+                    className="p-2 hover:bg-blue-50 rounded-lg text-blue-600"
+                    title="Редактировать колонку"
+                  >
+                    <Edit3 className="w-5 h-5" />
+                  </button>
+
+                  {/* Дублирование и удаление только для пользовательских */}
+                  {!column.system && (
                     <>
-                      <span>•</span>
-                      <span>{column.options.length} вариантов</span>
+                      <button
+                        onClick={() => handleDuplicateColumn(column)}
+                        className="p-2 hover:bg-gray-100 rounded-lg text-gray-600"
+                        title="Дублировать колонку"
+                      >
+                        <Copy className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteColumn(column.key)}
+                        className="p-2 hover:bg-red-50 rounded-lg text-red-600"
+                        title="Удалить колонку"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
                     </>
                   )}
                 </div>
-              </div>
-
-              {/* Видимость */}
-              <button
-                onClick={() => toggleVisibility(column.key)}
-                className={`p-1.5 rounded transition ${
-                  isVisible ? 'text-blue-600 hover:bg-blue-50' : 'text-gray-400 hover:bg-gray-100'
-                }`}
-                title={isVisible ? 'Скрыть' : 'Показать'}
-              >
-                {isVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-              </button>
-
-              {/* Управление */}
-              <div className="flex gap-0.5">
-                <button
-                  onClick={() => handleMoveColumn(column.key, 'up')}
-                  disabled={index === 0}
-                  className="p-1.5 hover:bg-gray-100 rounded text-gray-600 disabled:opacity-30"
-                  title="Вверх"
-                >
-                  <ArrowUp className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => handleMoveColumn(column.key, 'down')}
-                  disabled={index === allColumns.length - 1}
-                  className="p-1.5 hover:bg-gray-100 rounded text-gray-600 disabled:opacity-30"
-                  title="Вниз"
-                >
-                  <ArrowDown className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setEditingColumn(column)}
-                  className="p-1.5 hover:bg-gray-100 rounded text-gray-600"
-                  title="Редактировать"
-                >
-                  <Edit3 className="w-4 h-4" />
-                </button>
-                {!column.system && (
-                  <>
-                    <button
-                      onClick={() => handleDuplicateColumn(column)}
-                      className="p-1.5 hover:bg-gray-100 rounded text-gray-600"
-                      title="Дублировать"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteColumn(column.key)}
-                      className="p-1.5 hover:bg-red-50 rounded text-red-500"
-                      title="Удалить"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </>
-                )}
               </div>
             </div>
           );
@@ -537,55 +547,72 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
 
       {/* Модальное окно редактирования */}
       {editingColumn && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl p-6 max-w-md w-full max-h-[90vh] overflow-auto">
-            <h3 className="text-lg font-semibold mb-4">
-              Редактировать колонку "{editingColumn.label}"
-            </h3>
-            <div className="space-y-4">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 max-w-lg w-full max-h-[90vh] overflow-auto shadow-2xl">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-xl font-bold text-gray-900">
+                Редактировать колонку
+              </h3>
+              <button
+                onClick={() => setEditingColumn(null)}
+                className="p-1 hover:bg-gray-100 rounded"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="space-y-5">
               <div>
-                <label className="block text-sm text-gray-600 mb-1">Название</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Название колонки
+                </label>
                 <input
                   type="text"
                   value={editingColumn.label}
                   onChange={e => setEditingColumn({...editingColumn, label: e.target.value})}
-                  className="w-full px-3 py-2 border rounded-lg text-sm"
+                  className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:outline-none"
                 />
                 {editingColumn.system && (
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
                     Это системная колонка. Изменение названия не повлияет на данные.
                   </p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm text-gray-600 mb-1">Ширина (px)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Ширина колонки (px)
+                </label>
                 <input
                   type="number"
                   min="50"
                   max="500"
                   value={editingColumn.width}
                   onChange={e => setEditingColumn({...editingColumn, width: parseInt(e.target.value) || 150})}
-                  className="w-full px-3 py-2 border rounded-lg text-sm"
+                  className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:outline-none"
                 />
+                <p className="text-xs text-gray-500 mt-1">Рекомендуется: 100-200px</p>
               </div>
 
               {/* Тип данных только для пользовательских колонок */}
               {!editingColumn.system && (
                 <div>
-                  <label className="block text-sm text-gray-600 mb-1">Тип данных</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Тип данных
+                  </label>
                   <div className="grid grid-cols-2 gap-2">
                     {Object.entries(columnTypeLabels).map(([type, info]) => (
                       <button
                         key={type}
                         onClick={() => setEditingColumn({...editingColumn, type: type as CustomColumnType})}
-                        className={`p-2 border rounded-lg text-sm flex items-center gap-2 transition ${
+                        className={`p-3 border-2 rounded-lg text-sm flex items-center gap-2 transition ${
                           editingColumn.type === type
-                            ? 'border-blue-500 bg-blue-100'
+                            ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium'
                             : 'border-gray-200 hover:border-gray-300'
                         }`}
                       >
-                        <span>{info.icon}</span>
+                        <span className="text-xl">{info.icon}</span>
                         <span>{info.label}</span>
                       </button>
                     ))}
@@ -594,9 +621,11 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
               )}
 
               {/* Варианты для select */}
-              {editingColumn.type === 'select' && (
+              {editingColumn.type === 'select' && !editingColumn.system && (
                 <div>
-                  <label className="block text-sm text-gray-600 mb-1">Варианты выбора</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Варианты выбора
+                  </label>
                   <div className="space-y-2">
                     {(editingColumn.options || []).map((option, idx) => (
                       <div key={idx} className="flex gap-2">
@@ -608,7 +637,7 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
                             options[idx] = { ...options[idx], label: e.target.value };
                             setEditingColumn({ ...editingColumn, options });
                           }}
-                          className="flex-1 px-3 py-1.5 border rounded-lg text-sm"
+                          className="flex-1 px-3 py-2 border-2 border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:outline-none"
                           placeholder="Вариант"
                         />
                         <input
@@ -619,14 +648,14 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
                             options[idx] = { ...options[idx], color: e.target.value };
                             setEditingColumn({ ...editingColumn, options });
                           }}
-                          className="w-10 h-9 rounded cursor-pointer"
+                          className="w-12 h-10 rounded cursor-pointer border-2 border-gray-300"
                         />
                         <button
                           onClick={() => {
                             const options = (editingColumn.options || []).filter((_, i) => i !== idx);
                             setEditingColumn({ ...editingColumn, options });
                           }}
-                          className="p-1.5 text-red-500 hover:bg-red-50 rounded"
+                          className="px-3 py-2 text-red-500 hover:bg-red-50 rounded-lg border-2 border-red-200"
                         >
                           <X className="w-4 h-4" />
                         </button>
@@ -637,24 +666,24 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
                         const options = [...(editingColumn.options || []), { id: Date.now().toString(), label: '', color: '#3B82F6' }];
                         setEditingColumn({ ...editingColumn, options });
                       }}
-                      className="text-sm text-blue-600 hover:text-blue-700"
+                      className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
                     >
-                      + Добавить вариант
+                      <Plus className="w-4 h-4" /> Добавить вариант
                     </button>
                   </div>
                 </div>
               )}
 
-              <div className="flex gap-2 pt-2">
+              <div className="flex gap-3 pt-3">
                 <button
                   onClick={handleSaveEdit}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 flex items-center gap-1.5"
+                  className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 flex items-center justify-center gap-2"
                 >
-                  <Check className="w-4 h-4" /> Сохранить
+                  <Check className="w-5 h-5" /> Сохранить изменения
                 </button>
                 <button
                   onClick={() => setEditingColumn(null)}
-                  className="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50"
+                  className="px-6 py-2.5 border-2 border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50"
                 >
                   Отмена
                 </button>
@@ -663,19 +692,6 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
           </div>
         </div>
       )}
-
-      {/* Подсказки */}
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-600">
-        <h4 className="font-medium mb-2">💡 Подсказки:</h4>
-        <ul className="space-y-1 text-xs">
-          <li>• <strong>Перетаскивайте</strong> колонки за иконку ⋮⋮ для изменения порядка</li>
-          <li>• Используйте кнопки <strong>↑↓</strong> для точного перемещения</li>
-          <li>• Нажмите <strong>👁</strong> чтобы скрыть/показать колонку в таблице</li>
-          <li>• Нажмите <strong>✏️</strong> чтобы изменить название и ширину любой колонки</li>
-          <li>• <strong>Системные колонки</strong> нельзя удалить, но можно переименовать и скрыть</li>
-          <li>• <strong>Пользовательские колонки</strong> можно дублировать и удалять</li>
-        </ul>
-      </div>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { User } from './types';
-import { getSession, logout, seedDatabase, getUser, getPilgrimsForUser, getLeaders, formatCurrency, getTheme, setTheme, initBackendMode } from './api/dataProvider';
+import { getSession, logout, seedDatabase, getUser, getPilgrimsForUser, getLeaders, formatCurrency, getTheme, setTheme } from './store/database';
+import { initBackendMode } from './api/dataProvider';
 import { NotificationProvider } from './components/NotificationProvider';
 import LoginPage from './components/LoginPage';
 import PilgrimTable from './components/PilgrimTable';
@@ -83,9 +84,9 @@ export default function App() {
     setRefreshKey(k => k + 1);
   };
 
-  const handleExport = async () => {
-    const pilgrims = await getPilgrimsForUser();
-    const leaders = await getLeaders();
+  const handleExport = () => {
+    const pilgrims = getPilgrimsForUser();
+    const leaders = getLeaders();
     const csv = [
       ['ID', 'Папка', 'ФИО', 'Возраст', 'Телефон', 'Руководитель', 'Сумма', 'Документы', 'Оплата', 'Загрузка', 'Дата создания'].join(';'),
       ...pilgrims.map((p: any) => [
