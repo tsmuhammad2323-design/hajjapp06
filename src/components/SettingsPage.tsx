@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import type { SystemSettings, User } from '../types';
 import { CURRENCIES } from '../types';
-import { getSystemSettings, updateSystemSettings, exportBackup, importBackup, formatCurrency, getTheme, setTheme } from '../store/database';
+import { getSystemSettings, updateSystemSettings, exportBackup, importBackup, formatCurrency, getTheme, setTheme, isBackendMode, setBackendMode, checkBackendConnection, syncFromBackend } from '../api/dataProvider';
 import { formatPhone } from '../utils/phone';
 import TagsManager from './TagsManager';
-import { ArrowLeft, Save, Download, Upload, AlertCircle, CheckCircle, Settings as SettingsIcon, Globe, Building, Bell, Database, Plane, Calendar, FileText, Tag, Moon, Sun } from 'lucide-react';
+import { ArrowLeft, Save, Download, Upload, AlertCircle, CheckCircle, Settings as SettingsIcon, Globe, Building, Bell, Database, Plane, Calendar, FileText, Tag, Moon, Sun, Server, RefreshCw } from 'lucide-react';
 
 interface SettingsPageProps {
   user: User;
@@ -14,8 +14,11 @@ interface SettingsPageProps {
 export default function SettingsPage({ user, onBack }: SettingsPageProps) {
   const [settings, setSettings] = useState<SystemSettings>(getSystemSettings());
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [activeTab, setActiveTab] = useState<'general' | 'programs' | 'tags' | 'company' | 'backup'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'programs' | 'tags' | 'company' | 'backup' | 'connection'>('general');
   const [theme, setThemeState] = useState<'light' | 'dark'>(getTheme());
+  const [backendEnabled, setBackendEnabled] = useState(isBackendMode());
+  const [backendStatus, setBackendStatus] = useState<'checking' | 'connected' | 'disconnected'>('disconnected');
+  const [backendUrl, setBackendUrl] = useState(localStorage.getItem('crm_backend_url') || 'http://localhost:3001');
 
   const showNotif = (type: 'success' | 'error', text: string) => {
     setNotification({ type, text });
@@ -111,6 +114,7 @@ export default function SettingsPage({ user, onBack }: SettingsPageProps) {
             { key: 'general', label: 'Общие', icon: Globe },
             { key: 'programs', label: 'Программы', icon: Plane },
             { key: 'tags', label: 'Теги', icon: Tag },
+            { key: 'connection', label: 'Подключение', icon: Server },
             { key: 'company', label: 'Организация', icon: Building },
             { key: 'backup', label: 'Резервные копии', icon: Database },
           ].map(tab => (
@@ -236,6 +240,140 @@ export default function SettingsPage({ user, onBack }: SettingsPageProps) {
                 <Tag className="w-5 h-5 text-blue-500" /> Управление тегами
               </h3>
               <TagsManager onTagsChange={() => setSettings(getSystemSettings())} />
+            </div>
+          )}
+
+          {activeTab === 'connection' && (
+            <div className="space-y-4 md:space-y-6">
+              <div className="bg-white rounded-xl border p-4 md:p-6">
+                <h3 className="font-semibold text-gray-700 mb-4 flex items-center gap-2">
+                  <Server className="w-5 h-5 text-blue-500" /> Подключение к серверу
+                </h3>
+                
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-3 h-3 rounded-full ${
+                      backendStatus === 'connected' ? 'bg-emerald-500' :
+                      backendStatus === 'checking' ? 'bg-amber-500 animate-pulse' :
+                      'bg-red-500'
+                    }`} />
+                    <span className="text-sm font-medium">
+                      {backendStatus === 'connected' ? 'Подключено' :
+                       backendStatus === 'checking' ? 'Проверка...' :
+                       'Отключено'}
+                    </span>
+                    <button
+                      onClick={async () => {
+                        setBackendStatus('checking');
+                        const connected = await checkBackendConnection();
+                        setBackendStatus(connected ? 'connected' : 'disconnected');
+                      }}
+                      className="ml-auto px-3 py-1.5 border rounded-lg text-sm flex items-center gap-1.5 hover:bg-gray-50"
+                    >
+                      <RefreshCw className="w-4 h-4" /> Проверить
+                    </button>
+                  </div>
+
+                  <div>
+                    <label className="flex items-center gap-2 mb-2">
+                      <input
+                        type="checkbox"
+                        checked={backendEnabled}
+                        onChange={async (e) => {
+                          const enabled = e.target.checked;
+                          setBackendEnabled(enabled);
+                          setBackendMode(enabled);
+                          if (enabled) {
+                            setBackendStatus('checking');
+                            const connected = await checkBackendConnection();
+                            setBackendStatus(connected ? 'connected' : 'disconnected');
+                            if (connected) {
+                              showNotif('success', 'Подключено к серверу');
+                            } else {
+                              showNotif('error', 'Не удалось подключиться к серверу');
+                            }
+                          }
+                        }}
+                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-sm font-medium">Использовать серверный режим</span>
+                    </label>
+                    <p className="text-xs text-gray-500 ml-6">
+                      Когда включено, данные синхронизируются с сервером. Все пользователи видят актуальные данные.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">URL сервера</label>
+                    <input
+                      type="text"
+                      value={backendUrl}
+                      onChange={(e) => {
+                        setBackendUrl(e.target.value);
+                        localStorage.setItem('crm_backend_url', e.target.value);
+                      }}
+                      className="w-full px-3 py-2 border rounded-lg text-sm font-mono"
+                      placeholder="http://localhost:3001"
+                      disabled={!backendEnabled}
+                    />
+                  </div>
+
+                  {backendEnabled && (
+                    <button
+                      onClick={async () => {
+                        const result = await syncFromBackend();
+                        if (result.success) {
+                          showNotif('success', 'Данные синхронизированы');
+                        } else {
+                          showNotif('error', result.error || 'Ошибка синхронизации');
+                        }
+                      }}
+                      className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg text-sm flex items-center justify-center gap-2 hover:bg-blue-700"
+                    >
+                      <RefreshCw className="w-4 h-4" /> Синхронизировать сейчас
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl border p-4 md:p-6">
+                <h3 className="font-semibold text-gray-700 mb-4">Режимы работы</h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className={`border-2 rounded-lg p-4 ${!backendEnabled ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
+                    <h4 className="font-semibold text-gray-800 mb-2">📱 Локальный режим</h4>
+                    <ul className="text-xs text-gray-600 space-y-1">
+                      <li>✓ Данные хранятся в браузере</li>
+                      <li>✓ Работает без сервера</li>
+                      <li>✓ Быстрый отклик</li>
+                      <li>✗ Данные только на этом ПК</li>
+                      <li>✗ Нет синхронизации</li>
+                    </ul>
+                  </div>
+
+                  <div className={`border-2 rounded-lg p-4 ${backendEnabled ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
+                    <h4 className="font-semibold text-gray-800 mb-2">🌐 Серверный режим</h4>
+                    <ul className="text-xs text-gray-600 space-y-1">
+                      <li>✓ Данные на сервере</li>
+                      <li>✓ Доступ с любого ПК</li>
+                      <li>✓ Синхронизация в реальном времени</li>
+                      <li>✗ Нужен запущенный сервер</li>
+                      <li>✗ Зависит от сети</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="font-medium text-blue-900 mb-2">📋 Как запустить сервер:</h4>
+                <ol className="list-decimal list-inside space-y-1 text-sm text-blue-800">
+                  <li>Откройте терминал в папке проекта</li>
+                  <li>Перейдите в папку backend: <code className="bg-blue-100 px-1 rounded">cd backend</code></li>
+                  <li>Установите зависимости: <code className="bg-blue-100 px-1 rounded">npm install</code></li>
+                  <li>Запустите сервер: <code className="bg-blue-100 px-1 rounded">npm start</code></li>
+                  <li>Сервер запустится на <code className="bg-blue-100 px-1 rounded">http://localhost:3001</code></li>
+                </ol>
+              </div>
             </div>
           )}
 

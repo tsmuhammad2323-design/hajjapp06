@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { User } from './types';
-import { getSession, logout, seedDatabase, getUser, getPilgrimsForUser, getLeaders, formatCurrency, getTheme, setTheme } from './store/database';
+import { getSession, logout, seedDatabase, getUser, getPilgrimsForUser, getLeaders, formatCurrency, getTheme, setTheme, initBackendMode } from './api/dataProvider';
 import { NotificationProvider } from './components/NotificationProvider';
 import LoginPage from './components/LoginPage';
 import PilgrimTable from './components/PilgrimTable';
@@ -26,6 +26,7 @@ export default function App() {
   const [theme, setThemeState] = useState<'light' | 'dark'>(getTheme());
 
   useEffect(() => {
+    initBackendMode();
     seedDatabase();
     const session = getSession();
     if (session) {
@@ -82,16 +83,16 @@ export default function App() {
     setRefreshKey(k => k + 1);
   };
 
-  const handleExport = () => {
-    const pilgrims = getPilgrimsForUser();
-    const leaders = getLeaders();
+  const handleExport = async () => {
+    const pilgrims = await getPilgrimsForUser();
+    const leaders = await getLeaders();
     const csv = [
       ['ID', 'Папка', 'ФИО', 'Возраст', 'Телефон', 'Руководитель', 'Сумма', 'Документы', 'Оплата', 'Загрузка', 'Дата создания'].join(';'),
-      ...pilgrims.map(p => [
+      ...pilgrims.map((p: any) => [
         p.id.slice(0, 8), p.folderNumber,
         `${p.lastName} ${p.firstName} ${p.middleName}`.trim(),
         p.birthDate ? `${Math.floor((new Date().getTime() - new Date(p.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))} лет` : '',
-        p.phone, leaders.find(l => l.id === p.leaderId)?.fullName || '',
+        p.phone, leaders.find((l: any) => l.id === p.leaderId)?.fullName || '',
         formatCurrency(p.totalAmount), p.documentStatus === 'complete' ? 'Полный' : 'Неполный',
         p.paymentStatus, p.uploadStatus || '', new Date(p.createdAt).toLocaleDateString('ru-RU')
       ].join(';'))
