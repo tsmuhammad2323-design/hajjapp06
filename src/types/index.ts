@@ -186,6 +186,10 @@ export interface Pilgrim {
   paymentStatus: PaymentStatus;
   uploadStatus: UploadStatus;
   isArchived: boolean;
+  isDeleted: boolean;
+  deleteComment?: string;
+  deletedAt?: string;
+  deletedBy?: string;
   customData?: Record<string, any>; // Данные пользовательских колонок
   createdAt: string;
   updatedAt: string;

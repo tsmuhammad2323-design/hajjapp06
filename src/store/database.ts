@@ -162,7 +162,8 @@ export function createPilgrim(data: Partial<Pilgrim>): Pilgrim {
     comments: data.comments || '',
     additionalComments: data.additionalComments || '',
     documentStatus: 'incomplete', paymentStatus: 'not_paid', uploadStatus: '',
-    isArchived: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), version: 1
+    isArchived: false, isDeleted: false,
+    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), version: 1
   };
   pilgrims.push(pilgrim);
   set('pilgrims', pilgrims);
@@ -229,8 +230,43 @@ export function restorePilgrim(id: string) {
   set('pilgrims', pilgrims);
 }
 
-export function deletePilgrim(id: string) {
-  set('pilgrims', get<Pilgrim>('pilgrims').filter(p => p.id !== id));
+export function deletePilgrim(id: string, comment: string = '') {
+  const pilgrims = get<Pilgrim>('pilgrims');
+  const idx = pilgrims.findIndex(p => p.id === id);
+  if (idx === -1) throw new Error('Паломник не найден');
+  
+  const session = getSession();
+  pilgrims[idx].isDeleted = true;
+  pilgrims[idx].deleteComment = comment;
+  pilgrims[idx].deletedAt = new Date().toISOString();
+  pilgrims[idx].deletedBy = session?.userId || '';
+  pilgrims[idx].updatedAt = new Date().toISOString();
+  
+  set('pilgrims', pilgrims);
+  addAuditLog('pilgrim_deleted', 'pilgrim', id, `${pilgrims[idx].lastName} ${pilgrims[idx].firstName}`, session?.userId, '', comment);
+}
+
+export function getDeletedPilgrims(): Pilgrim[] {
+  const session = getSession();
+  if (!session) return [];
+  const all = get<Pilgrim>('pilgrims');
+  if (session.role === 'admin' || session.role === 'employee') return all.filter(p => p.isDeleted);
+  if (session.role === 'leader') return all.filter(p => p.leaderId === session.leaderId && p.isDeleted);
+  return [];
+}
+
+export function restoreDeletedPilgrim(id: string) {
+  const pilgrims = get<Pilgrim>('pilgrims');
+  const idx = pilgrims.findIndex(p => p.id === id);
+  if (idx === -1) throw new Error('Паломник не найден');
+  
+  pilgrims[idx].isDeleted = false;
+  pilgrims[idx].deleteComment = undefined;
+  pilgrims[idx].deletedAt = undefined;
+  pilgrims[idx].deletedBy = undefined;
+  pilgrims[idx].updatedAt = new Date().toISOString();
+  
+  set('pilgrims', pilgrims);
 }
 
 // ====== PAYMENTS ======
@@ -446,21 +482,57 @@ export function generateNextFolderNumber(): string {
   const maxNum = settings.maxFolderNumber || 1500;
   const pilgrims = get<Pilgrim>('pilgrims');
   
-  let maxUsed = 0;
+  // Собираем все занятые номера (включая удалённых)
+  const usedNumbers = new Set<number>();
   pilgrims.forEach(p => {
     const match = p.folderNumber.match(/^А(\d+)$/i);
     if (match) {
-      const num = parseInt(match[1]);
-      if (num > maxUsed) maxUsed = num;
+      usedNumbers.add(parseInt(match[1]));
     }
   });
   
-  const nextNum = maxUsed + 1;
+  // Находим первый свободный номер
+  let nextNum = 1;
+  while (usedNumbers.has(nextNum) && nextNum <= maxNum) {
+    nextNum++;
+  }
+  
   if (nextNum > maxNum) {
     throw new Error(`Достигнут лимит номеров папок (А${maxNum})`);
   }
   
-  return `А${String(nextNum).padStart(2, '0')}`;
+  return `А${String(nextNum).padStart(3, '0')}`;
+}
+
+export function getFolderNumbersStatus(): { occupied: number[]; deleted: number[]; free: number[] } {
+  const settings = getSystemSettings();
+  const maxNum = settings.maxFolderNumber || 1500;
+  const pilgrims = get<Pilgrim>('pilgrims');
+  
+  const occupied: number[] = [];
+  const deleted: number[] = [];
+  
+  pilgrims.forEach(p => {
+    const match = p.folderNumber.match(/^А(\d+)$/i);
+    if (match) {
+      const num = parseInt(match[1]);
+      if (p.isDeleted) {
+        deleted.push(num);
+      } else if (!p.isArchived) {
+        occupied.push(num);
+      }
+    }
+  });
+  
+  const allUsed = new Set([...occupied, ...deleted]);
+  const free: number[] = [];
+  for (let i = 1; i <= maxNum; i++) {
+    if (!allUsed.has(i)) {
+      free.push(i);
+    }
+  }
+  
+  return { occupied, deleted, free };
 }
 
 // ====== THEME ======
