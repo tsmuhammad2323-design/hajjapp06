@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import type { CustomColumn, CustomColumnType, TableSettings } from '../types';
 import { getTableSettings, setTableSettings } from '../store/database';
-import { Plus, Trash2, Settings, GripVertical, X, Check } from 'lucide-react';
+import { Plus, Trash2, Edit3, ArrowUp, ArrowDown, Copy, X, Check, GripVertical } from 'lucide-react';
 
 interface CustomColumnsManagerProps {
   onColumnsChange: () => void;
@@ -15,9 +15,15 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
     type: 'text',
     options: []
   });
-  const [editingColumn, setEditingColumn] = useState<string | null>(null);
+  const [editingColumn, setEditingColumn] = useState<CustomColumn | null>(null);
+  const [draggedColumnId, setDraggedColumnId] = useState<string | null>(null);
 
   const customColumns = settings.customColumns || [];
+
+  const refreshSettings = () => {
+    setSettings(getTableSettings());
+    onColumnsChange();
+  };
 
   const handleAddColumn = () => {
     if (!newColumn.name?.trim()) return;
@@ -74,6 +80,78 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
     onColumnsChange();
   };
 
+  const handleMoveColumn = (id: string, direction: 'up' | 'down') => {
+    const index = customColumns.findIndex(c => c.id === id);
+    if (index === -1) return;
+
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= customColumns.length) return;
+
+    const newColumns = [...customColumns];
+    [newColumns[index], newColumns[newIndex]] = [newColumns[newIndex], newColumns[index]];
+
+    const updatedSettings = {
+      ...settings,
+      customColumns: newColumns
+    };
+
+    setTableSettings(updatedSettings);
+    setSettings(updatedSettings);
+    onColumnsChange();
+  };
+
+  const handleDuplicateColumn = (column: CustomColumn) => {
+    const newCol: CustomColumn = {
+      ...column,
+      id: 'custom_' + Date.now(),
+      name: `${column.name} (копия)`,
+      createdAt: new Date().toISOString()
+    };
+
+    const columnKey = `custom_${newCol.id}`;
+    const updatedSettings = {
+      ...settings,
+      customColumns: [...customColumns, newCol],
+      visibleColumns: [...(settings.visibleColumns || []), columnKey]
+    };
+
+    setTableSettings(updatedSettings);
+    setSettings(updatedSettings);
+    onColumnsChange();
+  };
+
+  const handleDragStart = (id: string) => {
+    setDraggedColumnId(id);
+  };
+
+  const handleDragOver = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    if (!draggedColumnId || draggedColumnId === targetId) return;
+
+    const draggedIndex = customColumns.findIndex(c => c.id === draggedColumnId);
+    const targetIndex = customColumns.findIndex(c => c.id === targetId);
+
+    if (draggedIndex === -1 || targetIndex === -1) return;
+
+    const newColumns = [...customColumns];
+    const [draggedColumn] = newColumns.splice(draggedIndex, 1);
+    newColumns.splice(targetIndex, 0, draggedColumn);
+
+    const updatedSettings = {
+      ...settings,
+      customColumns: newColumns
+    };
+
+    setTableSettings(updatedSettings);
+    setSettings(updatedSettings);
+    setDraggedColumnId(targetId);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedColumnId(null);
+    onColumnsChange();
+  };
+
   const columnTypes: { value: CustomColumnType; label: string; icon: string }[] = [
     { value: 'text', label: 'Текст', icon: '📝' },
     { value: 'number', label: 'Число', icon: '🔢' },
@@ -88,8 +166,8 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-gray-700 flex items-center gap-2">
-          <Settings className="w-5 h-5 text-blue-500" />
-          Пользовательские колонки
+          <Edit3 className="w-5 h-5 text-blue-500" />
+          Управление колонками
         </h3>
         <button
           onClick={() => setShowAddForm(true)}
@@ -199,7 +277,7 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
 
       {/* Список всех колонок */}
       <div className="space-y-4">
-        {/* Базовые колонки */}
+        {/* Системные колонки */}
         <div>
           <h4 className="font-medium text-sm text-gray-700 mb-2">Системные колонки</h4>
           <div className="space-y-2">
@@ -258,18 +336,23 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
           <h4 className="font-medium text-sm text-gray-700 mb-2">Пользовательские колонки</h4>
           {customColumns.length === 0 ? (
             <div className="text-center py-6 text-gray-400 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-              <Settings className="w-10 h-10 mx-auto mb-2 opacity-30" />
               <p className="text-sm">Пользовательские колонки не созданы</p>
               <p className="text-xs mt-1">Нажмите "Добавить колонку" выше</p>
             </div>
           ) : (
             <div className="space-y-2">
-              {customColumns.map(column => (
+              {customColumns.map((column, index) => (
                 <div
                   key={column.id}
-                  className="bg-white border rounded-lg p-3 flex items-center gap-3"
+                  draggable
+                  onDragStart={() => handleDragStart(column.id)}
+                  onDragOver={(e) => handleDragOver(e, column.id)}
+                  onDragEnd={handleDragEnd}
+                  className={`bg-white border rounded-lg p-3 flex items-center gap-3 cursor-move transition ${
+                    draggedColumnId === column.id ? 'opacity-50' : ''
+                  }`}
                 >
-                  <GripVertical className="w-4 h-4 text-gray-400 cursor-move" />
+                  <GripVertical className="w-4 h-4 text-gray-400" />
                   
                   <div className="flex-1">
                     <div className="font-medium text-sm">{column.name}</div>
@@ -303,11 +386,34 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
 
                   <div className="flex gap-1">
                     <button
-                      onClick={() => setEditingColumn(column.id)}
+                      onClick={() => handleMoveColumn(column.id, 'up')}
+                      disabled={index === 0}
+                      className="p-1.5 hover:bg-gray-100 rounded text-gray-600 disabled:opacity-30"
+                      title="Переместить вверх"
+                    >
+                      <ArrowUp className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleMoveColumn(column.id, 'down')}
+                      disabled={index === customColumns.length - 1}
+                      className="p-1.5 hover:bg-gray-100 rounded text-gray-600 disabled:opacity-30"
+                      title="Переместить вниз"
+                    >
+                      <ArrowDown className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setEditingColumn(column)}
                       className="p-1.5 hover:bg-gray-100 rounded text-gray-600"
                       title="Редактировать"
                     >
-                      <Settings className="w-4 h-4" />
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDuplicateColumn(column)}
+                      className="p-1.5 hover:bg-gray-100 rounded text-gray-600"
+                      title="Дублировать"
+                    >
+                      <Copy className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleDeleteColumn(column.id)}
@@ -329,53 +435,82 @@ export default function CustomColumnsManager({ onColumnsChange }: CustomColumnsM
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl p-6 max-w-md w-full">
             <h3 className="text-lg font-semibold mb-4">Редактировать колонку</h3>
-            {(() => {
-              const column = customColumns.find(c => c.id === editingColumn);
-              if (!column) return null;
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Название</label>
+                <input
+                  type="text"
+                  value={editingColumn.name}
+                  onChange={e => setEditingColumn({...editingColumn, name: e.target.value})}
+                  className="w-full px-3 py-2 border rounded-lg text-sm"
+                />
+              </div>
 
-              return (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm text-gray-600 mb-1">Название</label>
-                    <input
-                      type="text"
-                      defaultValue={column.name}
-                      id="edit-column-name"
-                      className="w-full px-3 py-2 border rounded-lg text-sm"
-                    />
-                  </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Ширина (px)</label>
+                <input
+                  type="number"
+                  value={editingColumn.width || 150}
+                  onChange={e => setEditingColumn({...editingColumn, width: parseInt(e.target.value) || 150})}
+                  className="w-full px-3 py-2 border rounded-lg text-sm"
+                />
+              </div>
 
-                  <div>
-                    <label className="block text-sm text-gray-600 mb-1">Ширина (px)</label>
-                    <input
-                      type="number"
-                      defaultValue={column.width || 150}
-                      id="edit-column-width"
-                      className="w-full px-3 py-2 border rounded-lg text-sm"
-                    />
-                  </div>
-
-                  <div className="flex gap-2">
+              {editingColumn.type === 'select' && (
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">Варианты выбора</label>
+                  <div className="space-y-2">
+                    {(editingColumn.options || []).map((option, idx) => (
+                      <div key={idx} className="flex gap-2">
+                        <input
+                          type="text"
+                          value={option.label}
+                          onChange={e => {
+                            const options = [...(editingColumn.options || [])];
+                            options[idx] = { ...options[idx], label: e.target.value };
+                            setEditingColumn({ ...editingColumn, options });
+                          }}
+                          className="flex-1 px-3 py-1.5 border rounded-lg text-sm"
+                        />
+                        <button
+                          onClick={() => {
+                            const options = (editingColumn.options || []).filter((_, i) => i !== idx);
+                            setEditingColumn({ ...editingColumn, options });
+                          }}
+                          className="p-1.5 text-red-500 hover:bg-red-50 rounded"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
                     <button
                       onClick={() => {
-                        const name = (document.getElementById('edit-column-name') as HTMLInputElement).value;
-                        const width = parseInt((document.getElementById('edit-column-width') as HTMLInputElement).value);
-                        handleUpdateColumn(column.id, { name, width });
+                        const options = [...(editingColumn.options || []), { id: Date.now().toString(), label: '' }];
+                        setEditingColumn({ ...editingColumn, options });
                       }}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 flex items-center gap-1.5"
+                      className="text-sm text-blue-600 hover:text-blue-700"
                     >
-                      <Check className="w-4 h-4" /> Сохранить
-                    </button>
-                    <button
-                      onClick={() => setEditingColumn(null)}
-                      className="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50"
-                    >
-                      Отмена
+                      + Добавить вариант
                     </button>
                   </div>
                 </div>
-              );
-            })()}
+              )}
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleUpdateColumn(editingColumn.id, editingColumn)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 flex items-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" /> Сохранить
+                </button>
+                <button
+                  onClick={() => setEditingColumn(null)}
+                  className="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50"
+                >
+                  Отмена
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
